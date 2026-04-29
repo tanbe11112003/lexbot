@@ -1,15 +1,18 @@
 import pymysql
 import os
 import datetime
+from pathlib import Path
 
 import peewee as pw
 from dotenv import load_dotenv
 
 load_dotenv()
-db_name = os.getenv("MYSQL_DATABASE", "qna")
-db_host = os.getenv("MYSQL_HOST", "localhost")
+
+IS_DOCKER = Path("/.dockerenv").exists()
+db_name = "qna"
+db_host = "qna-mysql" if IS_DOCKER else "localhost"
 db_password = os.getenv("MYSQL_ROOT_PASSWORD")
-db_port = int(os.getenv("MYSQL_PORT", "3307"))
+db_port = 3306 if IS_DOCKER else 3307
 
 conn = pymysql.connect(host=db_host, port=db_port, user='root', password=db_password)
 cursor = conn.cursor()

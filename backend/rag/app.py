@@ -11,7 +11,6 @@ import  re
 from waitress import serve
 import requests
 from dotenv import load_dotenv
-import os
 import sys
 import torch
 from sentence_transformers import SentenceTransformer
@@ -24,7 +23,7 @@ LLM_MODEL = "vistral-7b-chat"
 EMBEDDING_MODEL = LLM_MODEL
 EMBEDDING_PROVIDER = "sentence-transformer"
 ST_MODEL_PATH = "keepitreal/vietnamese-sbert"
-EMBEDDING_DEVICE = os.getenv("EMBEDDING_DEVICE", "auto").lower()
+EMBEDDING_DEVICE = "auto"
 LLM_TIMEOUT = 300
 LLM_TEMPERATURE = 0.1
 LLM_TOP_P = 0.85

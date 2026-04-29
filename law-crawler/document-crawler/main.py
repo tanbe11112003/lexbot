@@ -1,5 +1,6 @@
 import os
 import re
+from pathlib import Path
 
 import pandas as pd
 import requests
@@ -10,11 +11,12 @@ from sqlalchemy import create_engine, text
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(BASE_DIR, ".env"))
-DB_NAME = os.getenv("MYSQL_DATABASE", "law")
-DB_USER = os.getenv("MYSQL_USER", "root")
-DB_PASSWORD = os.getenv("MYSQL_PASSWORD", "123456789")
-DB_HOST = os.getenv("MYSQL_HOST", "127.0.0.1")
-DB_PORT = os.getenv("MYSQL_PORT", "3306")
+IS_DOCKER = Path("/.dockerenv").exists()
+DB_NAME = "law"
+DB_USER = "root"
+DB_PASSWORD = os.getenv("MYSQL_PASSWORD")
+DB_HOST = "law-mysql" if IS_DOCKER else "127.0.0.1"
+DB_PORT = 3306
 ENGINE_URL = f"mysql+pymysql://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4"
 engine = create_engine(ENGINE_URL)
 

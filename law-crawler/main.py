@@ -1,10 +1,8 @@
 import csv
 import json
-import os
 from pathlib import Path
 
 from bs4 import BeautifulSoup
-from dotenv import load_dotenv
 from peewee import IntegrityError
 
 from helper import convert_roman_to_num, extract_input
@@ -12,12 +10,11 @@ from models.models import PDChuDe, PDChuong, PDDeMuc, PDDieu, PDFile, PDMucLienQ
 
 
 BASE_DIR = Path(__file__).resolve().parent
-load_dotenv(BASE_DIR / ".env")
 PHAP_DIEN_DIR = BASE_DIR / "phap-dien"
 DEMUC_DIR = PHAP_DIEN_DIR / "demuc"
-CORPUS_DIR = Path(os.getenv("CORPUS_DIR", BASE_DIR.parent / "backend" / "rag" / "corpus")).resolve()
-CHECKPOINT = os.getenv("CHECKPOINT", "").strip()
-RESET_DB = os.getenv("RESET_DB", "").lower() in {"1", "true", "yes"}
+CORPUS_DIR = (BASE_DIR.parent / "backend" / "rag" / "corpus").resolve()
+CHECKPOINT = ""
+RESET_DB = False
 
 
 def load_json(path):
