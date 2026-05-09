@@ -1,6 +1,0 @@
-site_name: SaulVN Documentation
-theme:
-    name: material
-plugins:
-    - search
-    - mkdocs-nav-weight
