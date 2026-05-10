@@ -63,21 +63,16 @@ class Citation(BaseModel):
 
 # ---------------------------- API request/response --------------------------
 
-ChatMode = Literal[
-    "phan_tich",
-    "tra_cuu_pdf",
-]
+
+QueryMode = Literal["fast", "thinking"]
 
 
 class ChatRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=4000)
     top_k: int = Field(default=8, ge=1, le=30)
-    chat_mode: ChatMode = Field(
-        default="tra_cuu_pdf",
-        description=(
-            "tra_cuu_pdf (mac dinh): tra loi/chat nhanh + trich theo VB hop nhat trong file PDF (dataset). "
-            "phan_tich: bat pipeline RAG/Neo4j + LLM de phan tich tinh huong."
-        ),
+    query_mode: QueryMode = Field(
+        default="fast",
+        description="fast=tra cứu nhanh (retrieval+gộp đoạn), thinking=pipeline đầy đủ (NER/graph/LLM phân tích).",
     )
     include_debug: bool = Field(
         default=False,
@@ -88,14 +83,13 @@ class ChatRequest(BaseModel):
 class StageEvent(BaseModel):
     """1 su kien streaming SSE."""
 
-    stage: str  # stage1_done (hieu query), stage2_done (retrieval), ...
+    stage: str  # stage1_done, stage2_done, ...
     payload: dict = Field(default_factory=dict)
 
 
 class ChatResponseDebug(BaseModel):
     entities: dict | None = None
     sub_queries: list[str] = Field(default_factory=list)
-    rewritten_queries: list[str] = Field(default_factory=list)
     retrieved: list[RetrievedChunk] = Field(default_factory=list)
     reranked: list[RetrievedChunk] = Field(default_factory=list)
     cypher_used: list[str] = Field(default_factory=list)

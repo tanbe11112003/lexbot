@@ -90,10 +90,6 @@ def root() -> dict:
         "version": "0.1.0",
         "docs": "/docs",
         "endpoints": ["/health", "/readyz", "/rag/query", "/rag/query/stream"],
-        "chat_modes": [
-            {"id": "tra_cuu_pdf", "desc": "Mac dinh: tra cuu VB PDF + chat nhanh (dataset / BLHS_PDF_PATH)."},
-            {"id": "phan_tich", "desc": "Tuy chon: phan tinh Neo4j + Hybrid RAG + LLM."},
-        ],
     }
 
 

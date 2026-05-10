@@ -9,8 +9,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.models.schemas import ChatRequest, ChatResponse
-from app.pipeline.orchestrator import run_pipeline, run_pipeline_stream
-from app.pipeline.pdf_textbook import run_pdf_lookup_pipeline
+from app.pipeline.orchestrator import run_pipeline, run_pipeline_fast, run_pipeline_stream
 
 logger = logging.getLogger(__name__)
 
@@ -24,16 +23,10 @@ async def rag_query(request: ChatRequest) -> ChatResponse:
     Tuong thich voi backend /chat/query da forward sang day.
     """
     try:
-        if request.chat_mode == "tra_cuu_pdf":
-            return await asyncio.to_thread(
-                run_pdf_lookup_pipeline,
-                request.question,
-                request.include_debug,
-            )
-
-        # Chay dong bo trong threadpool de tranh chan event loop
+        # Chạy đồng bộ trong thread pool để không chặn event loop
+        runner = run_pipeline_fast if request.query_mode == "fast" else run_pipeline
         return await asyncio.to_thread(
-            run_pipeline,
+            runner,
             question=request.question,
             top_k=request.top_k,
             include_debug=request.include_debug,
@@ -62,7 +55,6 @@ async def rag_query_stream(request: ChatRequest):
                 question=request.question,
                 top_k=request.top_k,
                 include_debug=request.include_debug,
-                chat_mode=request.chat_mode,
             ):
                 yield _format_sse(event.stage, event.payload)
         except Exception as exc:  # noqa: BLE001

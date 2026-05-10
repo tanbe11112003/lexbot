@@ -172,7 +172,6 @@ _LOGIC_VI = {
     "ACCOMPLICE": "đồng phạm",
     "ATTEMPT": "phạm tội chưa đạt",
     "PREPARATION": "chuẩn bị phạm tội",
-    "ADDITIONAL_PENALTY": "hình phạt bổ sung",
 }
 
 
