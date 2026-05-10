@@ -18,7 +18,9 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import time
+import unicodedata
 from typing import AsyncGenerator
 
 from app.core.config import settings
@@ -45,13 +47,88 @@ from app.pipeline.context_builder import (
 )
 from app.pipeline.prompts import SYSTEM_PROMPT, build_user_prompt
 from app.postprocessing.validator import validate_case_analysis
+from app.retrievers import graph as graph_retriever
 from app.retrievers.hybrid import retrieve_for_query
 from app.retrievers.reranker import rerank
 
 logger = logging.getLogger(__name__)
 
 
-# --------------------------- LLM client ------------------------------------
+# --------------------------- Normal hoa + boost retrieval --------------------
+
+
+def _normalize_vi_rule(text: str) -> str:
+    """Chuan hoa tieng Viet giong fast_response de match tu khoa."""
+    t = (text or "").lower()
+    t = t.replace("đ", "d")
+    t = unicodedata.normalize("NFKD", t)
+    t = "".join(ch for ch in t if not unicodedata.combining(ch))
+    t = re.sub(r"[^\w\s]", " ", t)
+    return re.sub(r"\s+", " ", t).strip()
+
+
+def _property_violence_article_candidates(question: str) -> list[int]:
+    """Vu bao luc + lay tai san / nhan / vang (vd danh ngat roi lay nhan) -> cuop/trom lien quan."""
+    norm = _normalize_vi_rule(question)
+    violent = any(
+        p in norm
+        for p in (
+            "danh",
+            "dung gay",
+            "dung dao",
+            "gay danh",
+            "dung vu luc",
+            "khong che",
+            "ngat",
+            "bat tinh",
+            "vo tinh",
+            "gay thuong",
+            "gay chet",
+        )
+    )
+    take_asset = any(
+        p in norm
+        for p in (
+            "lay",
+            "cuop",
+            "trom",
+            "chiem doat",
+            "mat cap",
+            "nhan",
+            "vang",
+            "tai san",
+            "do vat",
+        )
+    )
+    explicit_rob = "cuop" in norm or "cuop giat" in norm
+
+    if (violent and take_asset) or explicit_rob:
+        # 168 cuop, 169 cuop giat, 173 trom cap, 134 co y gay thuong tich (danh gay ngat)
+        return [168, 169, 173, 134]
+
+    return []
+
+
+def _boost_property_violence_chunks(question: str) -> list[RetrievedChunk]:
+    """Keo Dieu 168/169/173/134 vao context khi co tin hieu bao luc + chiếm doat tai san."""
+    articles = _property_violence_article_candidates(question)
+    if not articles:
+        return []
+    chunks: list[RetrievedChunk] = []
+    for i, article in enumerate(articles):
+        try:
+            fetched = graph_retriever.fetch_by_article(article)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Bo sung property_violence: khong fetch duoc Dieu %s: %s", article, exc)
+            continue
+        for j, chunk in enumerate(fetched[:4]):
+            chunk.rrf_score = max(chunk.rrf_score or 0.0, 0.11 - i * 0.014 - j * 0.002)
+            chunk.score = max(chunk.score or 0.0, 1.0)
+            meta = dict(chunk.meta or {})
+            meta["domain_boost"] = "property_violence"
+            chunk.meta = meta
+            chunks.append(chunk)
+    return chunks
 
 
 def _llm_client() -> tuple[object | None, str | None]:
@@ -413,6 +490,11 @@ def run_pipeline(
         )
         all_chunks.extend(chunks)
 
+    pv_chunks = _boost_property_violence_chunks(question)
+    if pv_chunks:
+        logger.info("Stage 1: bo sung %d chunk property_violence (cuop/trom/...)", len(pv_chunks))
+        all_chunks.extend(pv_chunks)
+
     # Dedupe theo rule_id/crime_id, giu rrf score cao nhat
     dedup: dict[str, RetrievedChunk] = {}
     for c in all_chunks:
@@ -586,6 +668,11 @@ async def run_pipeline_stream(
             role_hints=role_hints,
         )
         all_chunks.extend(chunks)
+
+    pv_chunks = _boost_property_violence_chunks(question)
+    if pv_chunks:
+        logger.info("Stream stage1: bo sung %d chunk property_violence", len(pv_chunks))
+        all_chunks.extend(pv_chunks)
 
     dedup: dict[str, RetrievedChunk] = {}
     for c in all_chunks:
