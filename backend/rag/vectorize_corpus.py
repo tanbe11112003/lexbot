@@ -1,7 +1,33 @@
 import csv
+import os
+import re
 import shutil
 import sys
 from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent
+
+
+def default_huggingface_cache_dir():
+    virtual_env = os.getenv("VIRTUAL_ENV")
+    if virtual_env:
+        return Path(virtual_env) / ".cache" / "huggingface"
+
+    for parent in [BASE_DIR, *BASE_DIR.parents]:
+        venv_path = parent / ".venv"
+        if venv_path.exists():
+            return venv_path / ".cache" / "huggingface"
+
+    return BASE_DIR.parent.parent / ".cache" / "huggingface"
+
+
+HF_CACHE_DIR = Path(os.getenv("SAULAI_HF_CACHE_DIR") or os.getenv("HF_HOME") or default_huggingface_cache_dir())
+HF_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+os.environ.setdefault("HF_HOME", str(HF_CACHE_DIR))
+os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(HF_CACHE_DIR / "hub"))
+os.environ.setdefault("TRANSFORMERS_CACHE", str(HF_CACHE_DIR / "transformers"))
+os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", str(HF_CACHE_DIR / "sentence-transformers"))
 
 import chromadb
 import torch
@@ -17,7 +43,6 @@ while True:
         field_size_limit //= 10
 
 
-BASE_DIR = Path(__file__).resolve().parent
 DOCS_PATH = (BASE_DIR / "corpus").resolve()
 DOCS_FILE = "pddieu.csv"
 DB_PERSIST_PATH = (BASE_DIR / "chroma_db_law").resolve()
@@ -28,6 +53,53 @@ CHROMA_BATCH_SIZE = 1024
 ENCODE_BATCH_SIZE = 64
 ARTICLE_CHUNK_MAX_CHARS = 2000
 ARTICLE_CHUNK_OVERLAP_CHARS = 150
+DOCUMENT_TYPE_LABELS = {
+    "LQ": "Luật",
+    "NĐ": "Nghị định",
+    "ND": "Nghị định",
+    "TT": "Thông tư",
+    "QĐ": "Quyết định",
+    "QD": "Quyết định",
+}
+ISSUE_KEYWORDS = [
+    "tiền lương",
+    "thai sản",
+    "hợp đồng",
+    "bảo hiểm",
+    "xử phạt",
+    "bồi thường",
+    "trợ cấp",
+    "khiếu nại",
+    "khởi kiện",
+    "chấm dứt hợp đồng",
+    "nghỉ việc",
+    "thời hạn",
+    "thẩm quyền",
+    "hồ sơ",
+]
+ACTOR_KEYWORDS = [
+    "người lao động",
+    "người sử dụng lao động",
+    "công ty",
+    "doanh nghiệp",
+    "cơ quan nhà nước",
+    "cá nhân",
+    "tổ chức",
+    "người nộp thuế",
+    "người dân",
+]
+PROCEDURE_TERMS = [
+    "hồ sơ",
+    "thời hạn",
+    "thẩm quyền",
+    "trình tự",
+    "thủ tục",
+    "nộp",
+    "giải quyết",
+    "khiếu nại",
+    "khởi kiện",
+    "cấp",
+]
 
 
 def row_text(row):
@@ -36,6 +108,59 @@ def row_text(row):
     if title and content:
         return f"{title}\n{content}"
     return title or content
+
+
+def parse_title_metadata(title):
+    title = (title or "").strip()
+    metadata = {}
+    if not title.startswith("Điều "):
+        return metadata
+
+    body = title[len("Điều "):]
+    article_code, separator, article_heading = body.partition(". ")
+    if not separator:
+        return metadata
+
+    metadata["article_code"] = article_code.strip()
+    metadata["article_heading"] = article_heading.strip()
+
+    code_parts = [part.strip() for part in re.split(r"[.]+", article_code) if part.strip()]
+    document_type_code = next((part.upper() for part in code_parts if part.upper() in DOCUMENT_TYPE_LABELS), "")
+    if document_type_code:
+        metadata["document_type_code"] = document_type_code
+        metadata["document_type"] = DOCUMENT_TYPE_LABELS[document_type_code]
+
+    numeric_parts = [part for part in code_parts if part.isdigit()]
+    if numeric_parts:
+        metadata["article_number"] = numeric_parts[-1]
+
+    return metadata
+
+
+def matched_terms(text, terms):
+    text = (text or "").lower()
+    return [term for term in terms if term.lower() in text]
+
+
+def enrich_text_metadata(row):
+    title = (row.get("title") or "").strip()
+    content = (row.get("content") or "").strip()
+    text = f"{title}\n{content}"
+    metadata = parse_title_metadata(title)
+
+    issue_keywords = matched_terms(text, ISSUE_KEYWORDS)
+    if issue_keywords:
+        metadata["issue_keywords"] = "|".join(issue_keywords)
+
+    actors = matched_terms(text, ACTOR_KEYWORDS)
+    if actors:
+        metadata["actors"] = "|".join(actors)
+
+    procedure_terms = matched_terms(text, PROCEDURE_TERMS)
+    if procedure_terms:
+        metadata["procedure_terms"] = "|".join(procedure_terms)
+
+    return metadata
 
 
 def row_metadata(row, source_name, row_number):
@@ -49,6 +174,7 @@ def row_metadata(row, source_name, row_number):
         value = str(value or "").strip()
         if value:
             metadata[key] = value
+    metadata.update(enrich_text_metadata(row))
     return metadata
 
 
@@ -167,6 +293,7 @@ def main():
     device = resolve_device()
     print(f"Embedding corpus with Vietnamese SBERT model: {ST_MODEL_PATH}")
     print(f"Embedding device: {device}")
+    print(f"Hugging Face cache path: {HF_CACHE_DIR}")
     print(f"Chroma batch size: {CHROMA_BATCH_SIZE}")
     print(f"Encode batch size: {ENCODE_BATCH_SIZE}")
     print(f"Article chunk max chars: {ARTICLE_CHUNK_MAX_CHARS}")
@@ -178,7 +305,11 @@ def main():
 
     DB_PERSIST_PATH.mkdir(parents=True, exist_ok=True)
     client = chromadb.PersistentClient(path=str(DB_PERSIST_PATH))
-    embedding_model = SentenceTransformer(ST_MODEL_PATH, device=device)
+    embedding_model = SentenceTransformer(
+        ST_MODEL_PATH,
+        device=device,
+        cache_folder=str(HF_CACHE_DIR / "sentence-transformers"),
+    )
     collection = client.get_or_create_collection(
         name=CHROMA_COLLECTION_NAME,
         metadata={"hnsw:space": "cosine"},
