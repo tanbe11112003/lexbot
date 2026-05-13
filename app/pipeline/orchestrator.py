@@ -2,17 +2,17 @@
 
 API `query_mode` (POST /rag/query):
 
-    - "fast": tra cứu nhanh — hybrid retrieval (vector + full-text), không graph/Cypher/LLM phân tích đầy đủ (`run_pipeline_fast`).
+    - "fast": tra cứu nhanh — hybrid retrieval (vector + full-text) + Neo4j theo tham chiếu "Điều X"/"khoản Y" trong câu; không pipeline LLM phân tích đầy đủ (`run_pipeline_fast`).
     - "thinking": pipeline 4 giai đoạn đầy đủ (`run_pipeline`).
 
 Stream SSE (/rag/query/stream) luon chay pipeline day du.
 
-Pipeline "thinking", thứ tự xử lý 1 câu hỏi:
+Pipeline "thinking", thứ tự xử lý 1 câu hỏi (theo đúng thứ tự chạy):
 
-    Stage 2 (Query understanding):  NER + decompose
-    Stage 1 (Retrieval):            Hybrid retrieval cho moi sub-query
-    Stage 3 (Generation):           Rerank + LLM structured output
-    Stage 4 (Post-processing):      Validator + format response
+    Stage 1 (Query understanding):     NER + decompose + sinh Cypher candidates
+    Stage 2 (Retrieval):               Hybrid retrieval (RRF) + đọc graph + dedup ứng viên
+    Stage 3 (Generation):              Rerank + LLM structured output
+    Stage 4 (Post-processing):         Validator + format response
 """
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ from app.models.schemas import (
 )
 from app.nlp.cypher_gen import execute_candidates, generate_candidates
 from app.nlp.decomposer import SubQuery, decompose
-from app.nlp.ner import CaseEntities, extract_entities
+from app.nlp.ner import CaseEntities, extract_article_refs, extract_entities
 from app.pipeline.context_builder import (
     build_context,
     collect_known_articles,
@@ -373,10 +373,30 @@ def _plain_fast_chunks_answer(chunks: list[RetrievedChunk], max_items: int = 8) 
     return "\n".join(lines).strip()
 
 
-def _fast_lookup_case_analysis(question: str, chunks: list[RetrievedChunk]) -> CaseAnalysis:
+def _prioritize_explicit_article_chunks(
+    chunks: list[RetrievedChunk],
+    explicit_articles: set[int],
+) -> list[RetrievedChunk]:
+    """Đưa chunk trùng số điều được hỏi rõ trong câu lên đầu (sau rerank/RRF)."""
+    if not explicit_articles or not chunks:
+        return chunks
+
+    def sort_key(c: RetrievedChunk) -> tuple[int, float]:
+        matched = c.article is not None and int(c.article) in explicit_articles
+        score = float(c.rerank_score if c.rerank_score is not None else (c.rrf_score or 0.0))
+        return (1 if matched else 0, score)
+
+    return sorted(chunks, key=sort_key, reverse=True)
+
+
+def _fast_lookup_case_analysis(
+    question: str,
+    chunks: list[RetrievedChunk],
+    explicit_article_nums: set[int] | None = None,
+) -> CaseAnalysis:
     """Structured toi gian cho che do tra cuu (khong goi LLM phan tich toi danh day du)."""
     hint = (
-        "Chế độ tra cứu nhanh: xếp hạng theo vector + full-text trên văn đã chỉ mục. "
+        "Chế độ tra cứu nhanh: xếp hạng theo vector + full-text + truy graph khi có số Điều trong câu. "
         'Chọn "Phân tích (thinking)" để phân luật chi tiết qua pipeline đầy đủ.'
     )
     if not chunks:
@@ -411,6 +431,8 @@ def _fast_lookup_case_analysis(question: str, chunks: list[RetrievedChunk]) -> C
         )
 
     top = with_article[0]
+    explicit = explicit_article_nums or set()
+    top_has_explicit = bool(explicit) and top.article is not None and int(top.article) in explicit
     td = ToiDanhOutput(
         dieu=int(top.article) if top.article is not None else 0,
         khoan=top.clause,
@@ -444,7 +466,7 @@ def _fast_lookup_case_analysis(question: str, chunks: list[RetrievedChunk]) -> C
     return CaseAnalysis(
         summary=summary,
         actors=[actor],
-        confidence="medium",
+        confidence="high" if top_has_explicit else "medium",
         warnings=[hint],
     )
 
@@ -461,19 +483,19 @@ def run_pipeline(
     timings: dict[str, float] = {}
     debug = ChatResponseDebug() if include_debug else None
 
-    # ---------- Stage 2: Query understanding ----------
+    # ---------- Stage 1: Query understanding ----------
     t0 = time.time()
     entities = extract_entities(question)
     sub_queries: list[SubQuery] = decompose(question, entities)
     cypher_candidates = generate_candidates(question, entities)
-    timings["stage2_understanding_ms"] = round((time.time() - t0) * 1000, 1)
+    timings["stage1_understanding_ms"] = round((time.time() - t0) * 1000, 1)
 
     if debug is not None:
         debug.entities = entities.model_dump()
         debug.sub_queries = [sq.text for sq in sub_queries]
         debug.cypher_used = [c.cypher.strip().splitlines()[0] for c in cypher_candidates[:6]]
 
-    # ---------- Stage 1: Hybrid retrieval ----------
+    # ---------- Stage 2: Hybrid retrieval ----------
     t0 = time.time()
     refs = [(r.article, r.clause) for r in entities.article_refs]
     crime_keywords = entities.crime_hints[:3]
@@ -492,7 +514,7 @@ def run_pipeline(
 
     pv_chunks = _boost_property_violence_chunks(question)
     if pv_chunks:
-        logger.info("Stage 1: bo sung %d chunk property_violence (cuop/trom/...)", len(pv_chunks))
+        logger.info("Stage 2: bo sung %d chunk property_violence (cuop/trom/...)", len(pv_chunks))
         all_chunks.extend(pv_chunks)
 
     # Dedupe theo rule_id/crime_id, giu rrf score cao nhat
@@ -507,7 +529,7 @@ def run_pipeline(
             dedup[key] = c
     candidates = sorted(dedup.values(), key=lambda x: x.rrf_score, reverse=True)
     candidates = candidates[: settings.candidate_top_k]
-    timings["stage1_retrieval_ms"] = round((time.time() - t0) * 1000, 1)
+    timings["stage2_retrieval_ms"] = round((time.time() - t0) * 1000, 1)
 
     if debug is not None:
         debug.retrieved = candidates
@@ -515,7 +537,7 @@ def run_pipeline(
     # Graph results bo sung (de validator + context)
     t0 = time.time()
     graph_results = execute_candidates(cypher_candidates, max_run=4)
-    timings["stage1_graph_ms"] = round((time.time() - t0) * 1000, 1)
+    timings["stage2_graph_ms"] = round((time.time() - t0) * 1000, 1)
 
     # ---------- Stage 3: Rerank + Generation ----------
     t0 = time.time()
@@ -568,22 +590,24 @@ def run_pipeline_fast(
     top_k: int | None = None,
     include_debug: bool = False,
 ) -> ChatResponse:
-    """Che do tra cuu nhanh: retrieval hybrid (vector + full-text), khong Neo4j graph/Cypher hay LLM nang.
-
-    Phi hop khi chi can loc doan phap ly/PDF-da-chi-muc nhu sach giao trinh.
-    """
+    """Chế độ tra cứu nhanh: vector + full-text + graph theo số Điều (regex trong câu), không LLM đầy đủ."""
     timings: dict[str, float] = {}
     debug = ChatResponseDebug() if include_debug else None
 
+    q = question.strip()
+    regex_refs = extract_article_refs(q)
+    refs = [(r.article, r.clause) for r in regex_refs]
+    explicit_article_nums = {r.article for r in regex_refs}
+
     t0 = time.time()
     candidates = retrieve_for_query(
-        query=question.strip(),
-        fulltext_keywords=[question.strip()[:500]],
-        article_refs=None,
+        query=q,
+        fulltext_keywords=[q[:500]],
+        article_refs=refs or None,
         role_hints=None,
         top_k=settings.candidate_top_k,
     )
-    timings["stage1_retrieval_fast_ms"] = round((time.time() - t0) * 1000, 1)
+    timings["stage1_retrieval_ms"] = round((time.time() - t0) * 1000, 1)
 
     if debug is not None:
         debug.retrieved = list(candidates)
@@ -598,11 +622,16 @@ def run_pipeline_fast(
     else:
         reranked = sorted(candidates, key=lambda c: c.rrf_score, reverse=True)[:keep]
 
+    if explicit_article_nums:
+        reranked = _prioritize_explicit_article_chunks(reranked, explicit_article_nums)
+
     if debug is not None:
         debug.reranked = reranked
         debug.timings_ms = timings
 
-    case = _fast_lookup_case_analysis(question, reranked)
+    case = _fast_lookup_case_analysis(
+        question, reranked, explicit_article_nums=explicit_article_nums or None
+    )
     known_articles = collect_known_articles(reranked)
     known_rule_ids = collect_known_rule_ids(reranked)
     case, warnings = validate_case_analysis(
@@ -639,16 +668,17 @@ async def run_pipeline_stream(
     """Async generator yield StageEvent qua tung giai doan.
 
     Khong stream LLM token cap thap (de don gian),
-    chi stream theo MOC giai doan: stage2_done, stage1_done, stage3_done, stage4_done, final.
+    chi stream theo MOC giai doan (theo thu tu Stage 1..4): stage1_done, stage2_done,
+    stage3_rerank_done, stage3_llm_done, stage4_done, final.
     """
     yield StageEvent(stage="started", payload={"question": question})
 
-    # Stage 2
+    # Stage 1
     entities = extract_entities(question)
     sub_queries = decompose(question, entities)
     cypher_candidates = generate_candidates(question, entities)
     yield StageEvent(
-        stage="stage2_done",
+        stage="stage1_done",
         payload={
             "entities": entities.model_dump(),
             "sub_queries": [sq.text for sq in sub_queries],
@@ -656,7 +686,7 @@ async def run_pipeline_stream(
         },
     )
 
-    # Stage 1
+    # Stage 2
     refs = [(r.article, r.clause) for r in entities.article_refs]
     role_hints = list({sq.role_hint for sq in sub_queries if sq.role_hint})
     all_chunks: list[RetrievedChunk] = []
@@ -671,7 +701,7 @@ async def run_pipeline_stream(
 
     pv_chunks = _boost_property_violence_chunks(question)
     if pv_chunks:
-        logger.info("Stream stage1: bo sung %d chunk property_violence", len(pv_chunks))
+        logger.info("Stream stage2: bo sung %d chunk property_violence", len(pv_chunks))
         all_chunks.extend(pv_chunks)
 
     dedup: dict[str, RetrievedChunk] = {}
@@ -685,7 +715,7 @@ async def run_pipeline_stream(
     graph_results = execute_candidates(cypher_candidates, max_run=4)
 
     yield StageEvent(
-        stage="stage1_done",
+        stage="stage2_done",
         payload={
             "retrieved_count": len(candidates),
             "graph_runs": len(graph_results),
