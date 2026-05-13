@@ -24,6 +24,9 @@ requests>=2.32
 # Streamlit demo
 streamlit>=1.36
 
+# Đọc PDF VB hợp nhất BLHS (chat_mode tra_cuu_pdf)
+pypdf>=4.0
+
 # Evaluation
 pyyaml>=6.0
 pytest>=8.0

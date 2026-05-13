@@ -65,6 +65,7 @@ class Citation(BaseModel):
 
 
 QueryMode = Literal["fast", "thinking"]
+ChatMode = Literal["tra_cuu_pdf", "phan_tich"]
 
 
 class ChatRequest(BaseModel):
@@ -73,6 +74,14 @@ class ChatRequest(BaseModel):
     query_mode: QueryMode = Field(
         default="fast",
         description="fast=tra cứu nhanh (retrieval+gộp đoạn), thinking=pipeline đầy đủ (NER/graph/LLM phân tích).",
+    )
+    chat_mode: ChatMode | None = Field(
+        default=None,
+        description=(
+            "tra_cuu_pdf: trích VB hợp nhất BLHS từ file PDF (dataset hoặc BLHS_PDF_PATH). "
+            "phan_tich: ép pipeline Neo4j+LLM như thinking. "
+            "None (mặc định): phân nhánh chỉ theo query_mode."
+        ),
     )
     include_debug: bool = Field(
         default=False,
@@ -90,6 +99,7 @@ class StageEvent(BaseModel):
 class ChatResponseDebug(BaseModel):
     entities: dict | None = None
     sub_queries: list[str] = Field(default_factory=list)
+    rewritten_queries: list[str] = Field(default_factory=list)
     retrieved: list[RetrievedChunk] = Field(default_factory=list)
     reranked: list[RetrievedChunk] = Field(default_factory=list)
     cypher_used: list[str] = Field(default_factory=list)

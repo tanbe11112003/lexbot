@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from app.models.schemas import ChatRequest, ChatResponse
 from app.pipeline.orchestrator import run_pipeline, run_pipeline_fast, run_pipeline_stream
+from app.pipeline.pdf_textbook import run_pdf_lookup_pipeline
 
 logger = logging.getLogger(__name__)
 
@@ -23,7 +24,19 @@ async def rag_query(request: ChatRequest) -> ChatResponse:
     Tuong thich voi backend /chat/query da forward sang day.
     """
     try:
-        # Chạy đồng bộ trong thread pool để không chặn event loop
+        if request.chat_mode == "tra_cuu_pdf":
+            return await asyncio.to_thread(
+                run_pdf_lookup_pipeline,
+                request.question,
+                request.include_debug,
+            )
+        if request.chat_mode == "phan_tich":
+            return await asyncio.to_thread(
+                run_pipeline,
+                request.question,
+                request.top_k,
+                request.include_debug,
+            )
         runner = run_pipeline_fast if request.query_mode == "fast" else run_pipeline
         return await asyncio.to_thread(
             runner,
@@ -55,6 +68,7 @@ async def rag_query_stream(request: ChatRequest):
                 question=request.question,
                 top_k=request.top_k,
                 include_debug=request.include_debug,
+                chat_mode=request.chat_mode,
             ):
                 yield _format_sse(event.stage, event.payload)
         except Exception as exc:  # noqa: BLE001
