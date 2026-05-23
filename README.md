@@ -1,3 +1,4 @@
+![SaulAI chatbox](images/chatbox.png)
 # SaulAI
 
 ## 1. Giới thiệu
