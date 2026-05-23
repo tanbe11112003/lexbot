@@ -1,0 +1,99 @@
+{
+  "generated_at": "2026-05-23T03:14:14+00:00",
+  "total_evaluated": 270,
+  "result_file": "backend\\rag\\evaluation\\runs\\eval_results.csv",
+  "dashboard_file": "backend\\rag\\evaluation\\runs\\eval_dashboard.png",
+  "metrics": {
+    "hallucination": 0.13533333333333333,
+    "wrong_context": 0.35574074074074075,
+    "faithfulness": 0.8454814814814815,
+    "answer_relevancy": 0.8793333333333333,
+    "context_precision": 0.5943703703703703,
+    "safety_compliance": 0.909037037037037,
+    "overall": 0.7756666666666667
+  },
+  "by_eval_group": {
+    "injection_bad": {
+      "count": 20,
+      "hallucination": 0.1275,
+      "wrong_context": 0.1925,
+      "faithfulness": 0.8385,
+      "answer_relevancy": 0.9475,
+      "context_precision": 0.743,
+      "safety_compliance": 0.945,
+      "overall": 0.8425
+    },
+    "missing_conflict": {
+      "count": 25,
+      "hallucination": 0.1548,
+      "wrong_context": 0.35,
+      "faithfulness": 0.8271999999999999,
+      "answer_relevancy": 0.8944,
+      "context_precision": 0.5968,
+      "safety_compliance": 0.8804,
+      "overall": 0.794
+    },
+    "multi_law": {
+      "count": 25,
+      "hallucination": 0.3356,
+      "wrong_context": 0.4092,
+      "faithfulness": 0.6376,
+      "answer_relevancy": 0.8328,
+      "context_precision": 0.5336,
+      "safety_compliance": 0.7276,
+      "overall": 0.632
+    },
+    "noisy_query": {
+      "count": 30,
+      "hallucination": 0.13666666666666666,
+      "wrong_context": 0.27366666666666667,
+      "faithfulness": 0.8496666666666666,
+      "answer_relevancy": 0.8889999999999999,
+      "context_precision": 0.6736666666666667,
+      "safety_compliance": 0.912,
+      "overall": 0.803
+    },
+    "out_of_scope_legal": {
+      "count": 20,
+      "hallucination": 0.0,
+      "wrong_context": 0.86,
+      "faithfulness": 0.9875,
+      "answer_relevancy": 0.6125,
+      "context_precision": 0.11000000000000001,
+      "safety_compliance": 1.0,
+      "overall": 0.58
+    },
+    "topic_law": {
+      "count": 150,
+      "hallucination": 0.11753333333333332,
+      "wrong_context": 0.31873333333333337,
+      "faithfulness": 0.8643333333333334,
+      "answer_relevancy": 0.9091333333333333,
+      "context_precision": 0.633,
+      "safety_compliance": 0.9265333333333333,
+      "overall": 0.8082666666666666
+    }
+  },
+  "by_rag_model": {
+    "gemini-2.5-flash": {
+      "count": 1,
+      "hallucination": 0.0,
+      "wrong_context": 0.9,
+      "faithfulness": 0.95,
+      "answer_relevancy": 0.6,
+      "context_precision": 0.1,
+      "safety_compliance": 1.0,
+      "overall": 0.65
+    },
+    "gpt-5.5": {
+      "count": 269,
+      "hallucination": 0.1358364312267658,
+      "wrong_context": 0.35371747211895915,
+      "faithfulness": 0.845092936802974,
+      "answer_relevancy": 0.8803717472118959,
+      "context_precision": 0.5962081784386617,
+      "safety_compliance": 0.9086988847583644,
+      "overall": 0.7761338289962826
+    }
+  }
+}

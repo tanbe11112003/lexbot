@@ -1,15 +1,15 @@
 {
-    "name": "vietnam-law-advisor",
+    "name": "saulai",
     "version": "1.0.0",
-    "description": "Ứng dụng hỗ trợ tra cứu, hỏi đáp tri thức pháp luật dựa trên Bộ pháp điển và CSDL văn bản QPPL Việt Nam.",
-    "main": "index.js",
+    "description": "Hệ thống hỏi đáp pháp luật tiếng Việt dựa trên Graph RAG, Neo4j vector index, MySQL và Redis.",
+    "private": true,
     "scripts": {
         "test": "echo \"Error: no test specified\" && exit 1",
         "format": "prettier --write . --check '!**/backend/**/{auth,law,qna}-sql'",
         "prepare": "husky install"
     },
     "author": "",
-    "license": "LGPL-3.0-only",
+    "license": "GPL-3.0-only",
     "devDependencies": {
         "@commitlint/cli": "^18.4.3",
         "@commitlint/config-conventional": "^18.4.3",

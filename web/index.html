@@ -1,0 +1,1633 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SaulAI Chat</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --panel: #ffffff;
+      --line: #d9dde5;
+      --text: #15171c;
+      --muted: #687082;
+      --primary: #175ddc;
+      --primary-dark: #1248aa;
+      --danger: #b42318;
+      --assistant: #eef3ff;
+      --user: #dcfce7;
+      --shadow: 0 10px 30px rgba(19, 32, 56, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      min-height: 100vh;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button, input, select, textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .auth-shell {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px;
+      background: linear-gradient(135deg, #f6f7f9 0%, #e9eef7 100%);
+    }
+
+    .auth-card {
+      width: min(440px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      padding: 24px;
+    }
+
+    .auth-card h1 {
+      margin: 0 0 18px;
+      font-size: 24px;
+      line-height: 1.2;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+
+    .tab {
+      min-height: 40px;
+      border-radius: 6px;
+      background: #eef1f6;
+      color: var(--text);
+    }
+
+    .tab.active {
+      background: var(--primary);
+      color: #fff;
+    }
+
+    .field {
+      display: grid;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .field label {
+      font-size: 14px;
+      color: var(--muted);
+    }
+
+    .field input, .model-select, .chat-input, .history-search-input {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      outline: none;
+    }
+
+    .field input, .model-select, .history-search-input {
+      height: 40px;
+      padding: 0 12px;
+    }
+
+    .field input:focus, .model-select:focus, .chat-input:focus, .history-search-input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(23, 93, 220, 0.12);
+    }
+
+    .primary-button {
+      min-height: 42px;
+      border-radius: 6px;
+      background: var(--primary);
+      color: #fff;
+      padding: 0 16px;
+      font-weight: 600;
+    }
+
+    .primary-button:hover {
+      background: var(--primary-dark);
+    }
+
+    .secondary-button {
+      min-height: 38px;
+      border-radius: 6px;
+      background: #eef1f6;
+      color: var(--text);
+      padding: 0 12px;
+    }
+
+    .status {
+      min-height: 22px;
+      margin-top: 12px;
+      color: var(--danger);
+      font-size: 14px;
+    }
+
+    .totp-setup {
+      display: grid;
+      justify-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #f9fafc;
+    }
+
+    .totp-qr {
+      width: 180px;
+      height: 180px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      padding: 8px;
+    }
+
+    .totp-meta {
+      width: 100%;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.4;
+      overflow-wrap: anywhere;
+      text-align: center;
+    }
+
+    .app-shell {
+      height: 100vh;
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) 1fr;
+      overflow: hidden;
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border-right: 1px solid var(--line);
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-width: 0;
+    }
+
+    .sidebar-header {
+      padding: 16px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      gap: 12px;
+    }
+
+    .account-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .account-name {
+      min-width: 0;
+      font-weight: 700;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .history {
+      overflow-y: auto;
+      padding: 8px;
+    }
+
+    .history-search {
+      display: grid;
+      gap: 6px;
+    }
+
+    .history-search-input {
+      background: #f9fafc;
+    }
+
+    .history-row {
+      position: relative;
+      border-radius: 6px;
+    }
+
+    .history-row + .history-row {
+      margin-top: 2px;
+    }
+
+    .history-item {
+      width: 100%;
+      text-align: left;
+      background: transparent;
+      border-radius: 6px;
+      padding: 10px 42px 10px 10px;
+      display: grid;
+      gap: 4px;
+      color: var(--text);
+    }
+
+    .history-item:hover, .history-item.active, .history-row:focus-within .history-item {
+      background: #eef3ff;
+    }
+
+    .history-delete {
+      position: absolute;
+      top: 50%;
+      right: 6px;
+      width: 30px;
+      height: 30px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      background: #fff;
+      color: var(--danger);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 120ms ease, background 120ms ease;
+    }
+
+    .history-row:hover .history-delete, .history-row:focus-within .history-delete {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .history-delete:hover {
+      background: #fee4e2;
+    }
+
+    .history-delete svg {
+      width: 16px;
+      height: 16px;
+      stroke-width: 2;
+    }
+
+    .history-question {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 14px;
+    }
+
+    .history-meta {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .history-empty {
+      padding: 12px 10px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .chat {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      background: var(--bg);
+    }
+
+    .chat-topbar {
+      min-height: 64px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--line);
+      background: var(--panel);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .chat-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .model-wrap {
+      min-width: min(280px, 45vw);
+      display: grid;
+      grid-template-columns: auto minmax(170px, 1fr);
+      align-items: center;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .icon-button {
+      width: 40px;
+      height: 40px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      background: #eef1f6;
+      color: var(--text);
+      border: 1px solid transparent;
+    }
+
+    .icon-button:hover {
+      background: #e2e7f0;
+    }
+
+    .icon-button svg {
+      width: 18px;
+      height: 18px;
+      stroke-width: 2;
+    }
+
+    .settings-backdrop {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      background: rgba(15, 23, 42, 0.44);
+    }
+
+    .settings-dialog {
+      width: min(760px, 100%);
+      max-height: min(86vh, 760px);
+      overflow: auto;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+    }
+
+    .settings-header {
+      min-height: 58px;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .settings-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .settings-body {
+      display: grid;
+      gap: 18px;
+      padding: 16px;
+    }
+
+    .settings-section {
+      display: grid;
+      gap: 12px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .settings-section:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .settings-section h2 {
+      margin: 0;
+      font-size: 16px;
+      line-height: 1.3;
+    }
+
+    .settings-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .settings-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .danger-button {
+      min-height: 38px;
+      border-radius: 6px;
+      background: var(--danger);
+      color: #fff;
+      padding: 0 12px;
+      font-weight: 600;
+    }
+
+    .danger-button:hover {
+      background: #8a1c14;
+    }
+
+    .settings-status {
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .messages {
+      min-height: 0;
+      overflow-y: auto;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .message {
+      max-width: min(840px, 86%);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      line-height: 1.55;
+      box-shadow: 0 2px 10px rgba(19, 32, 56, 0.04);
+    }
+
+    .message.user {
+      align-self: flex-end;
+      background: var(--user);
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+      background: var(--assistant);
+    }
+
+    .message-meta {
+      margin-top: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .empty-state {
+      margin: auto;
+      color: var(--muted);
+      text-align: center;
+      max-width: 520px;
+      line-height: 1.5;
+    }
+
+    .composer {
+      border-top: 1px solid var(--line);
+      background: var(--panel);
+      padding: 12px 18px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 10px;
+      align-items: end;
+    }
+
+    .chat-input {
+      min-height: 48px;
+      max-height: 160px;
+      resize: vertical;
+      padding: 12px;
+      line-height: 1.4;
+    }
+
+    .references {
+      display: grid;
+      gap: 8px;
+      margin-top: 6px;
+      max-width: min(840px, 86%);
+    }
+
+    .reference {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+
+    .reference strong {
+      display: block;
+      color: var(--text);
+      margin-bottom: 4px;
+    }
+
+    @media (max-width: 780px) {
+      .app-shell {
+        grid-template-columns: 1fr;
+        grid-template-rows: 34vh 66vh;
+      }
+
+      .sidebar {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .chat-topbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .model-wrap {
+        grid-template-columns: 1fr;
+        min-width: 100%;
+      }
+
+      .topbar-actions {
+        align-items: stretch;
+        width: 100%;
+      }
+
+      .composer {
+        grid-template-columns: 1fr;
+      }
+
+      .settings-grid, .form-row {
+        grid-template-columns: 1fr;
+      }
+
+      .message, .references {
+        max-width: 100%;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="/web/styles/base.css" />
+  <link rel="stylesheet" href="/web/styles/better-call-saul.css" />
+</head>
+<body>
+  <section id="authShell" class="auth-shell">
+    <div class="auth-card">
+      <h1>SaulAI</h1>
+      <div class="tabs">
+        <button id="loginTab" class="tab active" type="button">Đăng nhập</button>
+        <button id="registerTab" class="tab" type="button">Đăng ký</button>
+      </div>
+      <form id="authForm">
+        <div id="nameField" class="field hidden">
+          <label for="nameInput">Tên</label>
+          <input id="nameInput" autocomplete="name" />
+        </div>
+        <div class="field">
+          <label for="emailInput">Email</label>
+          <input id="emailInput" type="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="passwordInput">Mật khẩu</label>
+          <input id="passwordInput" type="password" autocomplete="current-password" required />
+        </div>
+        <div id="totpSetup" class="totp-setup hidden">
+          <img id="totpQr" class="totp-qr" alt="Google Authenticator QR" />
+          <div id="totpMeta" class="totp-meta"></div>
+        </div>
+        <div id="totpField" class="field hidden">
+          <label for="totpInput">Mã Google Authenticator</label>
+          <input id="totpInput" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" />
+        </div>
+        <button id="authSubmit" class="primary-button" type="submit">Đăng nhập</button>
+        <div id="authStatus" class="status" role="status"></div>
+      </form>
+    </div>
+  </section>
+
+  <section id="appShell" class="app-shell hidden">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="account-row">
+          <div id="accountName" class="account-name"></div>
+          <button id="logoutButton" class="secondary-button" type="button">Đăng xuất</button>
+        </div>
+        <button id="newChatButton" class="primary-button" type="button">Chat mới</button>
+        <label class="history-search">
+          <input id="historySearchInput" class="history-search-input" type="search" placeholder="Tìm kiếm lịch sử" aria-label="Tìm kiếm lịch sử" autocomplete="off" />
+        </label>
+      </div>
+      <div id="historyList" class="history"></div>
+    </aside>
+
+    <main class="chat">
+      <header class="chat-topbar">
+        <div class="chat-title">Legal advice with Saul</div>
+        <div class="topbar-actions">
+          <label class="model-wrap">
+            <span>Model</span>
+            <select id="modelSelect" class="model-select">
+              <option value="gpt-5.5">gpt-5.5</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
+            </select>
+          </label>
+          <button id="settingsButton" class="icon-button" type="button" title="Cài đặt" aria-label="Cài đặt">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z"/>
+              <path d="M19.4 15a1.8 1.8 0 0 0 .36 1.98l.05.05a2.2 2.2 0 0 1-3.11 3.11l-.05-.05a1.8 1.8 0 0 0-1.98-.36 1.8 1.8 0 0 0-1.08 1.65V21.5a2.2 2.2 0 0 1-4.4 0v-.08a1.8 1.8 0 0 0-1.08-1.65 1.8 1.8 0 0 0-1.98.36l-.05.05a2.2 2.2 0 0 1-3.11-3.11l.05-.05A1.8 1.8 0 0 0 4.6 15a1.8 1.8 0 0 0-1.65-1.08H2.86a2.2 2.2 0 0 1 0-4.4h.08A1.8 1.8 0 0 0 4.6 8a1.8 1.8 0 0 0-.36-1.98l-.05-.05a2.2 2.2 0 1 1 3.11-3.11l.05.05A1.8 1.8 0 0 0 9.33 3.3a1.8 1.8 0 0 0 1.08-1.65V1.5a2.2 2.2 0 0 1 4.4 0v.08a1.8 1.8 0 0 0 1.08 1.65 1.8 1.8 0 0 0 1.98-.36l.05-.05a2.2 2.2 0 1 1 3.11 3.11l-.05.05A1.8 1.8 0 0 0 19.4 8a1.8 1.8 0 0 0 1.65 1.08h.08a2.2 2.2 0 0 1 0 4.4h-.08A1.8 1.8 0 0 0 19.4 15Z"/>
+            </svg>
+          </button>
+        </div>
+      </header>
+      <div id="messages" class="messages">
+        <div class="empty-state">Chọn một lịch sử trò chuyện hoặc nhập câu hỏi mới.</div>
+      </div>
+      <form id="chatForm" class="composer">
+        <textarea id="questionInput" class="chat-input" rows="2" placeholder="Nhập câu hỏi"></textarea>
+        <button id="sendButton" class="primary-button" type="submit">Gửi</button>
+      </form>
+    </main>
+  </section>
+
+  <section id="settingsBackdrop" class="settings-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+    <div class="settings-dialog">
+      <div class="settings-header">
+        <div id="settingsTitle" class="settings-title">Cài đặt</div>
+        <button id="settingsCloseButton" class="icon-button" type="button" title="Đóng" aria-label="Đóng">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+            <path d="M18 6 6 18"/>
+            <path d="m6 6 12 12"/>
+          </svg>
+        </button>
+      </div>
+      <div class="settings-body">
+        <section class="settings-section">
+          <h2>Đổi mật khẩu</h2>
+          <form id="changePasswordForm">
+            <div class="form-row">
+              <div class="field">
+                <label for="currentPasswordInput">Mật khẩu hiện tại</label>
+                <input id="currentPasswordInput" type="password" autocomplete="current-password" required />
+              </div>
+              <div class="field">
+                <label for="newPasswordInput">Mật khẩu mới</label>
+                <input id="newPasswordInput" type="password" autocomplete="new-password" required />
+              </div>
+              <div class="field">
+                <label for="changePasswordTotpInput">Mã 2FA</label>
+                <input id="changePasswordTotpInput" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required />
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button id="changePasswordButton" class="primary-button" type="submit">Đổi mật khẩu</button>
+              <div id="changePasswordStatus" class="settings-status" role="status"></div>
+            </div>
+          </form>
+        </section>
+
+        <section class="settings-section">
+          <h2>Ảnh đại diện</h2>
+          <div class="avatar-settings">
+            <div id="userAvatarPreview" class="message-avatar user avatar-preview" aria-hidden="true">U</div>
+            <div class="avatar-actions">
+              <input id="userAvatarInput" class="hidden" type="file" accept=".png,.jpg,.jpeg,image/png,image/jpeg" />
+              <button id="changeAvatarButton" class="secondary-button" type="button">Đổi ảnh đại diện</button>
+              <button id="removeAvatarButton" class="secondary-button" type="button">Xóa ảnh</button>
+              <div id="avatarStatus" class="settings-status" role="status"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="settings-section">
+          <h2>Xóa tài khoản</h2>
+          <form id="deleteAccountForm">
+            <div class="form-row">
+              <div class="field">
+                <label for="deletePasswordInput">Mật khẩu</label>
+                <input id="deletePasswordInput" type="password" autocomplete="current-password" required />
+              </div>
+              <div class="field">
+                <label for="deleteTotpInput">Mã 2FA</label>
+                <input id="deleteTotpInput" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required />
+              </div>
+              <div class="field">
+                <label for="deleteConfirmInput">Nhập DELETE</label>
+                <input id="deleteConfirmInput" autocomplete="off" required />
+              </div>
+            </div>
+            <div class="settings-actions">
+              <button id="deleteAccountButton" class="danger-button" type="submit">Xóa tài khoản</button>
+              <div id="deleteAccountStatus" class="settings-status" role="status"></div>
+            </div>
+          </form>
+        </section>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    const qnaBase = `${window.location.origin}/api/v1`;
+    const authBase = localStorage.getItem('saulaiAuthBase') || 'http://localhost:8000/auth/api/v1';
+    const state = {
+      authMode: 'login',
+      user: null,
+      history: [],
+      historySearch: '',
+      activeHistoryId: null,
+      newChatRequested: false,
+      pendingAuthMode: null,
+      mfaToken: null,
+      userAvatar: '',
+      messages: [],
+      citations: [],
+    };
+
+    const el = {
+      authShell: document.getElementById('authShell'),
+      appShell: document.getElementById('appShell'),
+      loginTab: document.getElementById('loginTab'),
+      registerTab: document.getElementById('registerTab'),
+      nameField: document.getElementById('nameField'),
+      nameInput: document.getElementById('nameInput'),
+      emailInput: document.getElementById('emailInput'),
+      passwordInput: document.getElementById('passwordInput'),
+      totpSetup: document.getElementById('totpSetup'),
+      totpQr: document.getElementById('totpQr'),
+      totpMeta: document.getElementById('totpMeta'),
+      totpField: document.getElementById('totpField'),
+      totpInput: document.getElementById('totpInput'),
+      authForm: document.getElementById('authForm'),
+      authSubmit: document.getElementById('authSubmit'),
+      authStatus: document.getElementById('authStatus'),
+      accountName: document.getElementById('accountName'),
+      logoutButton: document.getElementById('logoutButton'),
+      newChatButton: document.getElementById('newChatButton'),
+      historySearchInput: document.getElementById('historySearchInput'),
+      historyList: document.getElementById('historyList'),
+      messages: document.getElementById('messages'),
+      chatForm: document.getElementById('chatForm'),
+      questionInput: document.getElementById('questionInput'),
+      sendButton: document.getElementById('sendButton'),
+      modelSelect: document.getElementById('modelSelect'),
+      settingsButton: document.getElementById('settingsButton'),
+      settingsBackdrop: document.getElementById('settingsBackdrop'),
+      settingsCloseButton: document.getElementById('settingsCloseButton'),
+      changePasswordForm: document.getElementById('changePasswordForm'),
+      currentPasswordInput: document.getElementById('currentPasswordInput'),
+      newPasswordInput: document.getElementById('newPasswordInput'),
+      changePasswordTotpInput: document.getElementById('changePasswordTotpInput'),
+      changePasswordButton: document.getElementById('changePasswordButton'),
+      changePasswordStatus: document.getElementById('changePasswordStatus'),
+      userAvatarPreview: document.getElementById('userAvatarPreview'),
+      userAvatarInput: document.getElementById('userAvatarInput'),
+      changeAvatarButton: document.getElementById('changeAvatarButton'),
+      removeAvatarButton: document.getElementById('removeAvatarButton'),
+      avatarStatus: document.getElementById('avatarStatus'),
+      deleteAccountForm: document.getElementById('deleteAccountForm'),
+      deletePasswordInput: document.getElementById('deletePasswordInput'),
+      deleteTotpInput: document.getElementById('deleteTotpInput'),
+      deleteConfirmInput: document.getElementById('deleteConfirmInput'),
+      deleteAccountButton: document.getElementById('deleteAccountButton'),
+      deleteAccountStatus: document.getElementById('deleteAccountStatus'),
+    };
+
+    function token() {
+      return localStorage.getItem('accessToken') || '';
+    }
+
+    function setAuthMode(mode) {
+      state.authMode = mode;
+      resetTotpStep();
+      el.loginTab.classList.toggle('active', mode === 'login');
+      el.registerTab.classList.toggle('active', mode === 'register');
+      el.nameField.classList.toggle('hidden', mode === 'login');
+      el.authSubmit.textContent = mode === 'login' ? 'Đăng nhập' : 'Đăng ký';
+      el.authStatus.textContent = '';
+    }
+
+    function resetTotpStep() {
+      state.pendingAuthMode = null;
+      state.mfaToken = null;
+      el.totpSetup.classList.add('hidden');
+      el.totpField.classList.add('hidden');
+      el.totpQr.removeAttribute('src');
+      el.totpMeta.textContent = '';
+      el.totpInput.value = '';
+      el.totpInput.required = false;
+      el.emailInput.disabled = false;
+      el.passwordInput.disabled = false;
+      el.nameInput.disabled = false;
+    }
+
+    function showTotpStep(mode, data, message) {
+      state.pendingAuthMode = mode;
+      state.mfaToken = data.mfaToken || '';
+      el.emailInput.disabled = true;
+      el.passwordInput.disabled = true;
+      el.nameInput.disabled = true;
+      el.totpField.classList.remove('hidden');
+      el.totpInput.required = true;
+      if (data.setupRequired && data.qrCodeDataUrl) {
+        el.totpQr.src = data.qrCodeDataUrl;
+        el.totpMeta.textContent = data.issuer
+          ? `${data.issuer}: ${data.email || el.emailInput.value.trim()}`
+          : data.email || el.emailInput.value.trim();
+        el.totpSetup.classList.remove('hidden');
+      } else {
+        el.totpSetup.classList.add('hidden');
+        el.totpQr.removeAttribute('src');
+        el.totpMeta.textContent = '';
+      }
+      el.authSubmit.textContent = 'Xác thực';
+      el.authStatus.textContent = message || 'Nhập mã 6 số từ Google Authenticator.';
+      el.totpInput.focus();
+    }
+
+    async function requestJson(url, options = {}) {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...(options.headers || {}),
+        },
+      });
+      const text = await response.text();
+      let data = {};
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch (error) {
+          data = { response: text };
+        }
+      }
+      if (!response.ok) {
+        const error = new Error(data.message || data.response || `HTTP ${response.status}`);
+        error.status = response.status;
+        throw error;
+      }
+      return data;
+    }
+
+    async function authRequest(path, body) {
+      return requestJson(`${authBase}${path}`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+    }
+
+    async function authProtectedRequest(path, options = {}) {
+      const makeRequest = () => requestJson(`${authBase}${path}`, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${token()}`,
+          ...(options.headers || {}),
+        },
+      });
+      try {
+        return await makeRequest();
+      } catch (error) {
+        if (!isAuthError(error)) throw error;
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          return makeRequest();
+        }
+        expireSession();
+        throw error;
+      }
+    }
+
+    function isAuthError(error) {
+      const message = String(error?.message || '').toLowerCase();
+      return error?.status === 401
+        || message.includes('need authentication')
+        || message.includes('invalid token')
+        || message.includes('token is missing');
+    }
+
+    async function refreshAccessToken() {
+      const refreshToken = localStorage.getItem('refreshToken') || '';
+      if (!refreshToken) return false;
+      try {
+        const result = await authRequest('/refresh-token', { refreshToken });
+        const accessToken = result?.data?.accessToken || '';
+        if (!accessToken) return false;
+        localStorage.setItem('accessToken', accessToken);
+        state.user = { ...(state.user || {}), accessToken };
+        localStorage.setItem('user', JSON.stringify(state.user));
+        return true;
+      } catch (error) {
+        return false;
+      }
+    }
+
+    function expireSession() {
+      clearSession();
+      showAuth();
+      el.authStatus.textContent = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.';
+    }
+
+    async function qnaRequest(path, options = {}) {
+      const makeRequest = () => requestJson(`${qnaBase}${path}`, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${token()}`,
+          ...(options.headers || {}),
+        },
+      });
+      try {
+        return await makeRequest();
+      } catch (error) {
+        if (!isAuthError(error)) throw error;
+        const refreshed = await refreshAccessToken();
+        if (refreshed) {
+          return makeRequest();
+        }
+        expireSession();
+        throw error;
+      }
+    }
+
+    function showApp() {
+      el.authShell.classList.add('hidden');
+      el.appShell.classList.remove('hidden');
+      el.accountName.textContent = state.user?.name || state.user?.email || 'Tài khoản';
+      loadUserAvatar();
+    }
+
+    function showAuth() {
+      el.appShell.classList.add('hidden');
+      el.authShell.classList.remove('hidden');
+    }
+
+    function saveSession(user) {
+      state.user = user;
+      localStorage.setItem('accessToken', user.accessToken || '');
+      localStorage.setItem('refreshToken', user.refreshToken || '');
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+
+    function clearSettingsForms() {
+      if (el.changePasswordForm) el.changePasswordForm.reset();
+      if (el.deleteAccountForm) el.deleteAccountForm.reset();
+      if (el.changePasswordStatus) el.changePasswordStatus.textContent = '';
+      if (el.deleteAccountStatus) el.deleteAccountStatus.textContent = '';
+      if (el.avatarStatus) el.avatarStatus.textContent = '';
+      if (el.userAvatarInput) el.userAvatarInput.value = '';
+    }
+
+    function openSettings() {
+      clearSettingsForms();
+      updateUserAvatarPreview();
+      el.settingsBackdrop.classList.remove('hidden');
+      el.settingsCloseButton.focus();
+    }
+
+    function closeSettings() {
+      el.settingsBackdrop.classList.add('hidden');
+      clearSettingsForms();
+    }
+
+    function activeChatStorageKey() {
+      return `saulaiActiveChatId:${state.user?.email || 'anonymous'}`;
+    }
+
+    function avatarStorageKey() {
+      return `saulaiUserAvatar:${state.user?.email || 'anonymous'}`;
+    }
+
+    function loadUserAvatar() {
+      state.userAvatar = localStorage.getItem(avatarStorageKey()) || '';
+      updateUserAvatarPreview();
+    }
+
+    function updateUserAvatarPreview() {
+      if (!el.userAvatarPreview) return;
+      el.userAvatarPreview.innerHTML = '';
+      if (state.userAvatar) {
+        const img = document.createElement('img');
+        img.src = state.userAvatar;
+        img.alt = '';
+        el.userAvatarPreview.appendChild(img);
+      } else {
+        el.userAvatarPreview.textContent = 'U';
+      }
+    }
+
+    function persistActiveHistoryId(value) {
+      if (value) {
+        localStorage.setItem(activeChatStorageKey(), String(value));
+      } else {
+        localStorage.removeItem(activeChatStorageKey());
+      }
+    }
+
+    function readPersistedActiveHistoryId() {
+      return localStorage.getItem(activeChatStorageKey()) || '';
+    }
+
+    function currentChatId() {
+      const stateId = state.activeHistoryId ? String(state.activeHistoryId) : '';
+      if (stateId) return stateId;
+      const activeNodeId = el.historyList.querySelector('.history-item.active')?.dataset.chatId || '';
+      if (activeNodeId) return activeNodeId;
+      return readPersistedActiveHistoryId();
+    }
+
+    function clearSession() {
+      const currentActiveChatStorageKey = activeChatStorageKey();
+      state.user = null;
+      state.history = [];
+      state.historySearch = '';
+      state.activeHistoryId = null;
+      state.newChatRequested = false;
+      state.pendingAuthMode = null;
+      state.mfaToken = null;
+      state.userAvatar = '';
+      state.messages = [];
+      state.citations = [];
+      if (el.historySearchInput) el.historySearchInput.value = '';
+      if (el.totpInput) el.totpInput.value = '';
+      if (el.settingsBackdrop) el.settingsBackdrop.classList.add('hidden');
+      clearSettingsForms();
+      localStorage.removeItem(currentActiveChatStorageKey);
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+    }
+
+    function escapeHtml(value) {
+      return String(value || '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+      }[char]));
+    }
+
+    function appendFormattedText(parent, value) {
+      const text = String(value || '');
+      const parts = text.split('**');
+      for (let index = 0; index < parts.length; index += 1) {
+        const chunk = parts[index];
+        if (!chunk) continue;
+        if (index % 2 === 1) {
+          const strong = document.createElement('strong');
+          strong.textContent = chunk;
+          parent.appendChild(strong);
+        } else {
+          parent.appendChild(document.createTextNode(chunk));
+        }
+      }
+    }
+
+    function isMessagesNearBottom() {
+      return el.messages.scrollHeight - el.messages.scrollTop - el.messages.clientHeight < 48;
+    }
+
+    function renderMessages(options = {}) {
+      const { scrollToBottom = true, preserveScrollTop = null } = options;
+      el.messages.innerHTML = '';
+      if (!state.messages.length) {
+        el.messages.innerHTML = '<div class="empty-state">Chọn một lịch sử trò chuyện hoặc nhập câu hỏi mới.</div>';
+        return;
+      }
+
+      const appendReferences = (items) => {
+        if (!items || !items.length) return;
+        const refs = document.createElement('section');
+        refs.className = 'references';
+        for (const item of items) {
+          const ref = document.createElement('div');
+          ref.className = 'reference';
+          const title = document.createElement('strong');
+          title.textContent = item.title || item.ten || item.id || item.mapc || 'Trích dẫn';
+          ref.appendChild(title);
+          appendFormattedText(ref, item.content || item.noidung || '');
+          refs.appendChild(ref);
+        }
+        el.messages.appendChild(refs);
+      };
+
+      for (const message of state.messages) {
+        const row = document.createElement('div');
+        row.className = `message-row ${message.role}`;
+        const avatar = document.createElement('div');
+        avatar.className = `message-avatar ${message.role}`;
+        avatar.setAttribute('aria-hidden', 'true');
+        if (message.role === 'assistant') {
+          const img = document.createElement('img');
+          img.src = '/web/assets/saul-goodman.jpg';
+          img.alt = '';
+          avatar.appendChild(img);
+        } else if (state.userAvatar) {
+          const img = document.createElement('img');
+          img.src = state.userAvatar;
+          img.alt = '';
+          avatar.appendChild(img);
+        } else {
+          avatar.textContent = 'U';
+        }
+        const node = document.createElement('article');
+        node.className = `message ${message.role}`;
+        appendFormattedText(node, message.content);
+        const meta = document.createElement('div');
+        meta.className = 'message-meta';
+        meta.textContent = message.meta || '';
+        node.appendChild(meta);
+        if (message.role === 'user') {
+          row.appendChild(node);
+          row.appendChild(avatar);
+        } else {
+          row.appendChild(avatar);
+          row.appendChild(node);
+        }
+        el.messages.appendChild(row);
+        appendReferences(message.citations);
+      }
+
+      if (state.citations.length) {
+        appendReferences(state.citations);
+      }
+
+      if (scrollToBottom) {
+        el.messages.scrollTop = el.messages.scrollHeight;
+      } else if (preserveScrollTop !== null) {
+        el.messages.scrollTop = preserveScrollTop;
+      }
+    }
+
+    function historyId(item) {
+      return item.chat_id || item.id;
+    }
+
+    function historyTitle(item) {
+      return item.question || item.messages?.[0]?.question || '';
+    }
+
+    function messagesFromSession(item) {
+      const turns = item?.messages?.length
+        ? item.messages
+        : [{
+          question: item?.question || '',
+          updatedAt: item?.updatedAt || '',
+          response: item?.response || '',
+          model: item?.model || '',
+          answer: item?.answer || [],
+        }];
+      return turns.flatMap((turn) => {
+        const messages = [];
+        if (turn.question) {
+          messages.push({ role: 'user', content: turn.question, meta: turn.updatedAt || '' });
+        }
+        if (turn.response) {
+          messages.push({
+            role: 'assistant',
+            content: turn.response,
+            meta: turn.model || '',
+            citations: turn.answer || [],
+          });
+        }
+        return messages;
+      });
+    }
+
+    function renderHistory() {
+      el.historyList.innerHTML = '';
+      const query = state.historySearch.trim().toLowerCase();
+      const historyItems = query
+        ? state.history.filter((item) => historyTitle(item).toLowerCase().includes(query))
+        : state.history;
+      if (!historyItems.length) {
+        el.historyList.innerHTML = '<div class="history-empty">Không có lịch sử phù hợp.</div>';
+        return;
+      }
+      for (const item of historyItems) {
+        const itemId = historyId(item);
+        const row = document.createElement('div');
+        row.className = 'history-row';
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `history-item ${String(itemId) === String(state.activeHistoryId) ? 'active' : ''}`;
+        button.dataset.chatId = String(itemId);
+        button.title = historyTitle(item);
+        const question = document.createElement('span');
+        question.className = 'history-question';
+        question.textContent = historyTitle(item);
+        const meta = document.createElement('span');
+        meta.className = 'history-meta';
+        meta.textContent = `${item.updatedAt || ''}${item.model ? ' · ' + item.model : ''}`;
+        button.appendChild(question);
+        button.appendChild(meta);
+        button.addEventListener('click', () => {
+          selectHistory(item).catch(() => {});
+        });
+        const deleteButton = document.createElement('button');
+        deleteButton.type = 'button';
+        deleteButton.className = 'history-delete';
+        deleteButton.setAttribute('aria-label', 'Xóa lịch sử chat');
+        deleteButton.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5"/><path d="M14 11v5"/></svg>';
+        deleteButton.addEventListener('click', (event) => {
+          event.stopPropagation();
+          deleteHistory(item).catch(() => {});
+        });
+        row.appendChild(button);
+        row.appendChild(deleteButton);
+        el.historyList.appendChild(row);
+      }
+    }
+
+    async function selectHistory(item) {
+      const itemId = historyId(item);
+      state.activeHistoryId = itemId;
+      state.newChatRequested = false;
+      persistActiveHistoryId(itemId);
+      state.messages = messagesFromSession(item);
+      state.citations = [];
+      if (item.model) el.modelSelect.value = item.model;
+      renderHistory();
+      renderMessages();
+      try {
+        const session = await qnaRequest(`/question/${encodeURIComponent(itemId)}`);
+        const index = state.history.findIndex((entry) => String(historyId(entry)) === String(itemId));
+        if (index >= 0) state.history[index] = session;
+        if (String(state.activeHistoryId) === String(itemId)) {
+          state.messages = messagesFromSession(session);
+          state.citations = [];
+          if (session.model) el.modelSelect.value = session.model;
+          renderHistory();
+          renderMessages();
+        }
+      } catch (error) {
+        renderHistory();
+      }
+    }
+
+    async function loadHistory() {
+      state.history = await qnaRequest('/question');
+      const persistedId = readPersistedActiveHistoryId();
+      if (!state.activeHistoryId && persistedId && state.history.some((item) => String(historyId(item)) === String(persistedId))) {
+        state.activeHistoryId = persistedId;
+        state.newChatRequested = false;
+      }
+      renderHistory();
+    }
+
+    async function deleteHistory(item) {
+      const itemId = historyId(item);
+      const previousHistory = [...state.history];
+      state.history = state.history.filter((entry) => String(historyId(entry)) !== String(itemId));
+      if (String(state.activeHistoryId) === String(itemId)) {
+        resetChat();
+      } else {
+        renderHistory();
+      }
+      try {
+        if (!itemId) throw new Error('Missing chat id');
+        try {
+          await qnaRequest(`/question/chat/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
+        } catch (error) {
+          if (error.status !== 404) throw error;
+          await qnaRequest(`/question/${encodeURIComponent(itemId)}`, { method: 'DELETE' });
+        }
+      } catch (error) {
+        state.history = previousHistory;
+        renderHistory();
+        window.alert(`Không xóa được lịch sử chat: ${error.message}`);
+      }
+    }
+
+    function upsertHistoryFromResult(question, result, model) {
+      const chatId = result.chat_id || state.activeHistoryId || result.question_id || Date.now();
+      const existing = state.history.find((entry) => String(historyId(entry)) === String(chatId));
+      const existingTurns = existing?.messages?.length
+        ? existing.messages
+        : existing?.question
+          ? [{
+            id: existing.id,
+            question: existing.question,
+            updatedAt: existing.updatedAt || '',
+            response: existing.response || '',
+            model: existing.model || '',
+            answer: existing.answer || [],
+          }]
+          : [];
+      const turn = {
+        id: result.question_id || Date.now(),
+        question,
+        updatedAt: new Date().toLocaleDateString('en-US'),
+        response: result.response || '',
+        model: result.model || model,
+        answer: result.citation || [],
+      };
+      const item = {
+        ...(existing || {}),
+        id: chatId,
+        chat_id: chatId,
+        question: existing?.question || question,
+        updatedAt: turn.updatedAt,
+        response: turn.response,
+        model: turn.model,
+        answer: turn.answer,
+        messages: [...existingTurns, turn],
+      };
+      state.history = [
+        item,
+        ...state.history.filter((entry) => String(historyId(entry)) !== String(chatId)),
+      ];
+      state.activeHistoryId = chatId;
+      state.newChatRequested = false;
+      persistActiveHistoryId(chatId);
+      renderHistory();
+    }
+
+    async function submitAuth(event) {
+      event.preventDefault();
+      el.authStatus.textContent = '';
+      if (state.mfaToken) {
+        try {
+          const verifyPath = state.pendingAuthMode === 'register' ? '/register/verify-totp' : '/login/verify-totp';
+          const result = await authRequest(verifyPath, {
+            mfaToken: state.mfaToken,
+            code: el.totpInput.value.trim(),
+          });
+          resetTotpStep();
+          saveSession(result.data);
+          showApp();
+          await loadHistory();
+          resetChat();
+        } catch (error) {
+          el.authStatus.textContent = error.message;
+        }
+        return;
+      }
+      const body = {
+        email: el.emailInput.value.trim(),
+        password: el.passwordInput.value,
+      };
+      if (state.authMode === 'register') {
+        body.name = el.nameInput.value.trim();
+      }
+      try {
+        const result = await authRequest(state.authMode === 'login' ? '/login' : '/register', body);
+        if (result?.data?.mfaRequired && result?.data?.mfaToken) {
+          const message = result.data.setupRequired
+            ? 'Quét mã QR bằng Google Authenticator rồi nhập mã 6 số.'
+            : 'Nhập mã 6 số từ Google Authenticator.';
+          showTotpStep(state.authMode, result.data, message);
+          return;
+        }
+        saveSession(result.data);
+        showApp();
+        await loadHistory();
+        resetChat();
+      } catch (error) {
+        el.authStatus.textContent = error.message;
+      }
+    }
+
+    function resetChat(allowNewChat = false) {
+      state.activeHistoryId = null;
+      state.newChatRequested = allowNewChat;
+      persistActiveHistoryId(null);
+      state.messages = [];
+      state.citations = [];
+      el.questionInput.value = '';
+      renderHistory();
+      renderMessages();
+    }
+
+    function startNewChat() {
+      resetChat(true);
+    }
+
+    async function submitChangePassword(event) {
+      event.preventDefault();
+      el.changePasswordStatus.textContent = '';
+      el.changePasswordButton.disabled = true;
+      try {
+        await authProtectedRequest('/change-password', {
+          method: 'POST',
+          body: JSON.stringify({
+            currentPassword: el.currentPasswordInput.value,
+            newPassword: el.newPasswordInput.value,
+            code: el.changePasswordTotpInput.value.trim(),
+          }),
+        });
+        el.changePasswordForm.reset();
+        el.changePasswordStatus.textContent = 'Đã đổi mật khẩu.';
+      } catch (error) {
+        el.changePasswordStatus.textContent = error.message;
+      } finally {
+        el.changePasswordButton.disabled = false;
+      }
+    }
+
+    function chooseUserAvatar() {
+      el.userAvatarInput.click();
+    }
+
+    function handleUserAvatarFile(event) {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      const allowedTypes = new Set(['image/png', 'image/jpeg']);
+      if (!allowedTypes.has(file.type)) {
+        el.avatarStatus.textContent = 'Chỉ hỗ trợ ảnh PNG hoặc JPG.';
+        el.userAvatarInput.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        state.userAvatar = String(reader.result || '');
+        localStorage.setItem(avatarStorageKey(), state.userAvatar);
+        updateUserAvatarPreview();
+        renderMessages({ scrollToBottom: false, preserveScrollTop: el.messages.scrollTop });
+        el.avatarStatus.textContent = 'Đã cập nhật ảnh đại diện.';
+      };
+      reader.onerror = () => {
+        el.avatarStatus.textContent = 'Không đọc được file ảnh.';
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function removeUserAvatar() {
+      state.userAvatar = '';
+      localStorage.removeItem(avatarStorageKey());
+      updateUserAvatarPreview();
+      renderMessages({ scrollToBottom: false, preserveScrollTop: el.messages.scrollTop });
+      el.avatarStatus.textContent = 'Đã xóa ảnh đại diện.';
+    }
+
+    async function submitDeleteAccount(event) {
+      event.preventDefault();
+      el.deleteAccountStatus.textContent = '';
+      if (el.deleteConfirmInput.value !== 'DELETE') {
+        el.deleteAccountStatus.textContent = 'Nhập DELETE để xác nhận.';
+        return;
+      }
+      el.deleteAccountButton.disabled = true;
+      try {
+        await qnaRequest('/account-data', { method: 'DELETE' });
+        await authProtectedRequest('/account', {
+          method: 'DELETE',
+          body: JSON.stringify({
+            password: el.deletePasswordInput.value,
+            code: el.deleteTotpInput.value.trim(),
+          }),
+        });
+        closeSettings();
+        clearSession();
+        showAuth();
+        el.authStatus.textContent = 'Tài khoản đã được xóa.';
+      } catch (error) {
+        el.deleteAccountStatus.textContent = error.message;
+      } finally {
+        el.deleteAccountButton.disabled = false;
+      }
+    }
+
+    async function submitQuestion(event) {
+      event.preventDefault();
+      const question = el.questionInput.value.trim();
+      if (!question) return;
+
+      const model = el.modelSelect.value;
+      const chatId = currentChatId();
+      if (chatId) {
+        state.activeHistoryId = chatId;
+        state.newChatRequested = false;
+        persistActiveHistoryId(chatId);
+      }
+      const isStartingNewChat = !chatId && state.newChatRequested && state.messages.length === 0;
+      if (!chatId && !isStartingNewChat) {
+        state.messages.push({
+          role: 'assistant',
+          content: 'Không xác định được phiên chat hiện tại. Bấm Chat mới để tạo phiên mới hoặc chọn lại một lịch sử chat trước khi hỏi tiếp.',
+          meta: 'error',
+        });
+        renderMessages();
+        return;
+      }
+      state.citations = [];
+      state.messages.push({ role: 'user', content: question, meta: model });
+      renderMessages();
+      el.questionInput.value = '';
+      el.sendButton.disabled = true;
+      el.sendButton.textContent = 'Đang gửi';
+
+      try {
+        const payload = { question, model };
+        if (chatId) payload.chat_id = chatId;
+        if (isStartingNewChat) payload.new_chat = true;
+        const result = await qnaRequest('/question', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        });
+        const shouldStickToBottom = isMessagesNearBottom();
+        const scrollTopBeforeAnswer = el.messages.scrollTop;
+        state.messages.push({
+          role: 'assistant',
+          content: result.response || '',
+          meta: result.model || model,
+          citations: result.citation || [],
+        });
+        state.citations = [];
+        upsertHistoryFromResult(question, result, model);
+        loadHistory().catch(() => {});
+        renderMessages({
+          scrollToBottom: shouldStickToBottom,
+          preserveScrollTop: scrollTopBeforeAnswer,
+        });
+      } catch (error) {
+        const shouldStickToBottom = isMessagesNearBottom();
+        const scrollTopBeforeError = el.messages.scrollTop;
+        state.messages.push({ role: 'assistant', content: error.message, meta: 'error' });
+        renderMessages({
+          scrollToBottom: shouldStickToBottom,
+          preserveScrollTop: scrollTopBeforeError,
+        });
+      } finally {
+        el.sendButton.disabled = false;
+        el.sendButton.textContent = 'Gửi';
+      }
+    }
+
+    async function restoreSession() {
+      const savedUser = localStorage.getItem('user');
+      if (!savedUser || !token()) {
+        showAuth();
+        return;
+      }
+      try {
+        state.user = JSON.parse(savedUser);
+        try {
+          await requestJson(`${authBase}/validate`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${token()}` },
+            body: JSON.stringify({}),
+          });
+        } catch (error) {
+          if (!isAuthError(error) || !(await refreshAccessToken())) throw error;
+        }
+        showApp();
+        await loadHistory();
+        resetChat();
+      } catch (error) {
+        clearSession();
+        showAuth();
+      }
+    }
+
+    el.loginTab.addEventListener('click', () => setAuthMode('login'));
+    el.registerTab.addEventListener('click', () => setAuthMode('register'));
+    el.authForm.addEventListener('submit', submitAuth);
+    el.chatForm.addEventListener('submit', submitQuestion);
+    el.newChatButton.addEventListener('click', startNewChat);
+    el.settingsButton.addEventListener('click', openSettings);
+    el.settingsCloseButton.addEventListener('click', closeSettings);
+    el.settingsBackdrop.addEventListener('click', (event) => {
+      if (event.target === el.settingsBackdrop) closeSettings();
+    });
+    el.changePasswordForm.addEventListener('submit', submitChangePassword);
+    el.changeAvatarButton.addEventListener('click', chooseUserAvatar);
+    el.userAvatarInput.addEventListener('change', handleUserAvatarFile);
+    el.removeAvatarButton.addEventListener('click', removeUserAvatar);
+    el.deleteAccountForm.addEventListener('submit', submitDeleteAccount);
+    el.historySearchInput.addEventListener('input', () => {
+      state.historySearch = el.historySearchInput.value;
+      renderHistory();
+    });
+    el.logoutButton.addEventListener('click', () => {
+      clearSession();
+      showAuth();
+    });
+    el.questionInput.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        el.chatForm.requestSubmit();
+      }
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && !el.settingsBackdrop.classList.contains('hidden')) {
+        closeSettings();
+      }
+    });
+
+    restoreSession();
+  </script>
+</body>
+</html>

@@ -1,0 +1,67 @@
+flowchart TB
+  classDef input fill:#f8fbff,stroke:#356b9a,stroke-width:1px,color:#1f2933
+  classDef process fill:#fff8e6,stroke:#b7791f,stroke-width:1px,color:#1f2933
+  classDef neo fill:#eefaf1,stroke:#2f855a,stroke-width:1px,color:#1f2933
+  classDef score fill:#f4f0ff,stroke:#6b46c1,stroke-width:1px,color:#1f2933
+  classDef decision fill:#fff5f5,stroke:#c53030,stroke-width:1px,color:#1f2933
+
+  QUESTION["User question"]:::input
+  ANALYSIS["analysis JSON<br/>law_id, law_ids, search_queries, extracted_facts"]:::input
+  LAW["current law_id"]:::input
+  TERMS["_keyword_terms(question, analysis)"]:::process
+  ARTICLE_HINTS["_article_numbers_for_law<br/>question + analysis + law_id"]:::process
+
+  subgraph Retrieval["retrieve_chunks(question, analysis, law_id, top_k)"]
+    ARTICLE_SEARCH["article_number_search_chunks<br/>MATCH Chunk by law_id and article_number<br/>prefer article_source = LQ"]:::neo
+    KEYWORD_DECISION{"Chunk.search_text exists<br/>for this law?"}:::decision
+    KEYWORD_INDEX["keyword_search_chunks<br/>MATCH Chunk by law_id<br/>WHERE chunk.search_text CONTAINS term"]:::neo
+    KEYWORD_FALLBACK["Fallback keyword scan<br/>load Chunk.text and score in Python"]:::process
+    VECTOR_PREP["Build vector_queries<br/>question + search_queries"]:::process
+    EMBED["SentenceTransformer.encode<br/>normalize embedding"]:::process
+    VECTOR_QUERY["CALL db.index.vector.queryNodes<br/>index chunk_embedding_index<br/>score >= 0.35"]:::neo
+    SCORE_MERGE["Merge scores by chunk_id<br/>article hit bonus, keyword title bonus, vector score"]:::score
+    RANK["Sort by score descending"]:::score
+    DIVERSIFY["Diversity pass<br/>first occurrence per article, then duplicates"]:::score
+    TOPK["Return top_k retrieval rows"]:::score
+  end
+
+  subgraph ContextExpansion["expand_graph_context(chunk_ids, law_id)"]
+    MATCH_CHUNK["MATCH selected Chunk"]:::neo
+    SIBLINGS["OPTIONAL MATCH sibling Chunk<br/>same article_number and article_title"]:::neo
+    ARTICLE_TEXT["collect sibling.text ordered by<br/>clause_number, point_letter, id"]:::neo
+    CONTEXTS["contexts<br/>law, chapter, article metadata, context_text"]:::score
+  end
+
+  NEO4J["Neo4j Chunk nodes<br/>properties: law_id, search_text, article_number, article_source, embedding"]:::neo
+  VECTOR_INDEX["Neo4j vector index<br/>chunk_embedding_index"]:::neo
+
+  QUESTION --> TERMS
+  ANALYSIS --> TERMS
+  QUESTION --> ARTICLE_HINTS
+  ANALYSIS --> ARTICLE_HINTS
+  LAW --> ARTICLE_SEARCH
+  ARTICLE_HINTS --> ARTICLE_SEARCH
+  ARTICLE_SEARCH --> SCORE_MERGE
+  TERMS --> KEYWORD_DECISION
+  LAW --> KEYWORD_DECISION
+  KEYWORD_DECISION -- Yes --> KEYWORD_INDEX
+  KEYWORD_DECISION -- No or no rows --> KEYWORD_FALLBACK
+  KEYWORD_INDEX --> SCORE_MERGE
+  KEYWORD_FALLBACK --> SCORE_MERGE
+  QUESTION --> VECTOR_PREP
+  ANALYSIS --> VECTOR_PREP
+  VECTOR_PREP --> EMBED
+  EMBED --> VECTOR_QUERY
+  VECTOR_QUERY --> SCORE_MERGE
+  SCORE_MERGE --> RANK
+  RANK --> DIVERSIFY
+  DIVERSIFY --> TOPK
+  TOPK --> MATCH_CHUNK
+  MATCH_CHUNK --> SIBLINGS
+  SIBLINGS --> ARTICLE_TEXT
+  ARTICLE_TEXT --> CONTEXTS
+  ARTICLE_SEARCH --> NEO4J
+  KEYWORD_INDEX --> NEO4J
+  KEYWORD_FALLBACK --> NEO4J
+  VECTOR_QUERY --> VECTOR_INDEX
+  VECTOR_INDEX --> NEO4J

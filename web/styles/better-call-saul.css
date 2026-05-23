@@ -1,0 +1,201 @@
+body {
+  background:
+    linear-gradient(135deg, rgba(244, 196, 48, 0.18), rgba(201, 35, 35, 0.08)),
+    radial-gradient(circle at 20px 20px, rgba(20, 17, 15, 0.08) 2px, transparent 2px),
+    #f8e8b4;
+  background-size: auto, 28px 28px, auto;
+}
+
+.auth-shell {
+  background:
+    linear-gradient(135deg, rgba(244, 196, 48, 0.92), rgba(201, 35, 35, 0.78)),
+    radial-gradient(circle at 18px 18px, rgba(20, 17, 15, 0.18) 2px, transparent 2px);
+  background-size: auto, 26px 26px;
+}
+
+.auth-card,
+.sidebar,
+.chat-topbar,
+.composer,
+.settings-dialog {
+  border: 2px solid var(--saul-line);
+  box-shadow: 8px 8px 0 rgba(20, 17, 15, 0.18);
+}
+
+.auth-card h1,
+.chat-title,
+.settings-title {
+  color: var(--saul-red);
+  text-transform: uppercase;
+  letter-spacing: 0;
+  text-shadow: 2px 2px 0 var(--saul-yellow);
+}
+
+.app-shell {
+  background:
+    linear-gradient(90deg, rgba(20, 17, 15, 0.04), transparent 42%),
+    var(--saul-paper);
+}
+
+.sidebar {
+  background: #fff1b8;
+}
+
+.sidebar-header {
+  background: linear-gradient(180deg, #f4c430, #f3b02d);
+  border-bottom: 2px solid var(--saul-line);
+}
+
+.account-name {
+  color: var(--saul-ink);
+}
+
+.history {
+  background: #fff7d9;
+}
+
+.history-item {
+  border: 1px solid transparent;
+}
+
+.history-item:hover,
+.history-item.active,
+.history-row:focus-within .history-item {
+  background: #ffe07a;
+  border-color: var(--saul-line);
+  box-shadow: 3px 3px 0 rgba(20, 17, 15, 0.12);
+}
+
+.chat {
+  background:
+    linear-gradient(180deg, rgba(255, 246, 216, 0.86), rgba(248, 232, 180, 0.94)),
+    radial-gradient(circle at 16px 16px, rgba(201, 35, 35, 0.08) 2px, transparent 2px);
+  background-size: auto, 32px 32px;
+}
+
+.chat-topbar {
+  background: linear-gradient(90deg, #f4c430, #ffe27a);
+  border-bottom: 2px solid var(--saul-line);
+}
+
+.model-select,
+.history-search-input,
+.field input,
+.chat-input {
+  border: 2px solid var(--saul-line);
+  background: #fffdf1;
+  box-shadow: inset 2px 2px 0 rgba(20, 17, 15, 0.06);
+}
+
+.field input:focus,
+.model-select:focus,
+.chat-input:focus,
+.history-search-input:focus {
+  border-color: var(--saul-red);
+  box-shadow: 0 0 0 3px rgba(244, 196, 48, 0.48);
+}
+
+.primary-button {
+  border: 2px solid var(--saul-line);
+  background: var(--saul-red);
+  color: #fff8d6;
+  box-shadow: 4px 4px 0 rgba(20, 17, 15, 0.24);
+  text-transform: uppercase;
+}
+
+.primary-button:hover {
+  background: var(--saul-red-dark);
+}
+
+.secondary-button,
+.icon-button {
+  border: 2px solid var(--saul-line);
+  background: var(--saul-yellow);
+  color: var(--saul-ink);
+  box-shadow: 3px 3px 0 rgba(20, 17, 15, 0.18);
+}
+
+.secondary-button:hover,
+.icon-button:hover {
+  background: #ffd95f;
+}
+
+.messages {
+  padding: 24px;
+}
+
+.message {
+  border: 2px solid var(--saul-line);
+  border-radius: 8px;
+  box-shadow: 5px 5px 0 rgba(20, 17, 15, 0.16);
+}
+
+.message.assistant {
+  background: #fff8d6;
+}
+
+.message.user {
+  background: #ffe07a;
+}
+
+.message.assistant::before {
+  content: "SaulAI";
+  display: block;
+  width: fit-content;
+  margin-bottom: 8px;
+  padding: 2px 8px;
+  border: 1px solid var(--saul-line);
+  background: var(--saul-red);
+  color: #fff8d6;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.message-meta {
+  color: #665126;
+  font-weight: 700;
+}
+
+.reference {
+  border: 2px solid var(--saul-line);
+  background: #fffdf1;
+  box-shadow: 4px 4px 0 rgba(20, 17, 15, 0.12);
+}
+
+.reference strong {
+  color: var(--saul-red);
+}
+
+.empty-state {
+  padding: 22px;
+  border: 2px solid var(--saul-line);
+  border-radius: 8px;
+  background: rgba(255, 248, 214, 0.82);
+  color: var(--saul-ink);
+  box-shadow: 5px 5px 0 rgba(20, 17, 15, 0.12);
+}
+
+.settings-header {
+  background: linear-gradient(90deg, #f4c430, #ffe27a);
+  border-bottom: 2px solid var(--saul-line);
+}
+
+.danger-button {
+  border: 2px solid var(--saul-line);
+  box-shadow: 4px 4px 0 rgba(20, 17, 15, 0.2);
+}
+
+@media (max-width: 780px) {
+  .messages {
+    padding: 14px;
+  }
+
+  .auth-card,
+  .sidebar,
+  .chat-topbar,
+  .composer,
+  .settings-dialog {
+    box-shadow: 4px 4px 0 rgba(20, 17, 15, 0.16);
+  }
+}

@@ -1,1 +1,6 @@
 .env
+qna-sql/
+*.log
+__pycache__/
+.cache/
+graph_rag_data/indexes/

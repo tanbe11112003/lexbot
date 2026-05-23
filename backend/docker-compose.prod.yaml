@@ -123,23 +123,39 @@ services:
   qna-service:
     image: d3r4nk/saulvn-qna:latest
     restart: always
+    env_file:
+      - ../.env
     depends_on:
       - qna-mysql
       - redis
+      - neo4j
+    ports:
+      - '5001:5001'
+    volumes:
+      - ../web:/app/web:ro
     networks:
-      - app-network
+        - app-network
     secrets:
       - access_token_key
     environment:
       MYSQL_ROOT_PASSWORD: 123456789
       MYSQL_DATABASE: qna
       MYSQL_HOST: qna-mysql
-      ST_MODEL_PATH: keepitreal/vietnamese-sbert
-      QA_MODEL_PATH: namngo/videberta-xsmall-finetuned-squad
       REDIS_HOST: redis
-      TOPIC_DB_PATH: ./chroma_db_demuc
       MYSQL_PORT: 3306
-      HF_INFERENCE_API: https://hm78d3nz1mmn6cjr.us-east-1.aws.endpoints.huggingface.cloud
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_BASE_URL: ${GEMINI_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      GEMINI_QA_MODEL: ${GEMINI_QA_MODEL:-gemini-2.5-flash}
+      GEMINI_ENRICH_MODEL: ${GEMINI_ENRICH_MODEL:-gemini-2.5-flash}
+      OPENAI_QA_MODEL: ${OPENAI_QA_MODEL:-gpt-5.5}
+      DEFAULT_CHAT_MODEL: ${DEFAULT_CHAT_MODEL:-gpt-5.5}
+      WEB_DIR: /app/web
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME:-sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USER: ${NEO4J_USER:-neo4j}
+      NEO4J_PASS: ${NEO4J_PASS:-123456789}
   recommendation-service:
     build: ./recommendation
     restart: always

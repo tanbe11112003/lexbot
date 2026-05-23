@@ -1,21 +1,22 @@
+import atexit
+import json
 import os
+import signal
+import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 
 BASE_DIR = Path(__file__).resolve().parent
+REPO_ROOT = BASE_DIR.parents[1] if len(BASE_DIR.parents) > 1 else BASE_DIR
+
+load_dotenv(REPO_ROOT / ".env")
+load_dotenv(BASE_DIR / ".env", override=False)
 
 
 def default_huggingface_cache_dir():
-    virtual_env = os.getenv("VIRTUAL_ENV")
-    if virtual_env:
-        return Path(virtual_env) / ".cache" / "huggingface"
-
-    for parent in [BASE_DIR, *BASE_DIR.parents]:
-        venv_path = parent / ".venv"
-        if venv_path.exists():
-            return venv_path / ".cache" / "huggingface"
-
-    return BASE_DIR.parent.parent / ".cache" / "huggingface"
+    return REPO_ROOT / ".venv" / ".cache" / "huggingface"
 
 
 HF_CACHE_DIR = Path(os.getenv("SAULAI_HF_CACHE_DIR") or os.getenv("HF_HOME") or default_huggingface_cache_dir())
@@ -25,441 +26,117 @@ os.environ.setdefault("HUGGINGFACE_HUB_CACHE", str(HF_CACHE_DIR / "hub"))
 os.environ.setdefault("TRANSFORMERS_CACHE", str(HF_CACHE_DIR / "transformers"))
 os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", str(HF_CACHE_DIR / "sentence-transformers"))
 
-from flask import *
-from flask_cors import CORS, cross_origin
-from playhouse.shortcuts import model_to_dict
-from models import *
-from directory import *
-from cache import *
-import chromadb
-import json
+from flask import Flask, request, send_from_directory
+from flask_cors import CORS
 import jwt
-import  re
 from waitress import serve
-import requests
-from dotenv import load_dotenv
-import sys
-import torch
-from sentence_transformers import SentenceTransformer
 
-
-load_dotenv()
-
-
-def env_int(name, default):
-    try:
-        return int(os.getenv(name, default))
-    except (TypeError, ValueError):
-        return default
-
-
-def env_float(name, default):
-    try:
-        return float(os.getenv(name, default))
-    except (TypeError, ValueError):
-        return default
-
-
-def env_bool(name, default=False):
-    value = os.getenv(name)
-    if value is None:
-        return default
-    return value.strip().lower() in {"1", "true", "yes", "on"}
-
-
-LLM_BASE_URL = "http://127.0.0.1:1234/v1"
-LLM_MODEL = "vistral-7b-chat"
-QUERY_STRUCTURE_MODEL = os.getenv("QUERY_STRUCTURE_MODEL", "qwen2.5-7b-instruct")
-USE_QUERY_STRUCTURE = env_bool("USE_QUERY_STRUCTURE", False)
-EMBEDDING_MODEL = LLM_MODEL
-EMBEDDING_PROVIDER = "sentence-transformer"
-ST_MODEL_PATH = "keepitreal/vietnamese-sbert"
-EMBEDDING_DEVICE = "auto"
-LLM_TIMEOUT = env_int("LLM_TIMEOUT", 600)
-LLM_TEMPERATURE = env_float("LLM_TEMPERATURE", 0.1)
-LLM_TOP_P = env_float("LLM_TOP_P", 0.85)
-RETRIEVAL_K = env_int("RETRIEVAL_K", 4)
-MAX_CONTEXT_CHARS = env_int("MAX_CONTEXT_CHARS", 5000)
-MAX_DOC_CHARS = env_int("MAX_DOC_CHARS", 700)
-MAX_ANSWER_TOKENS = env_int("MAX_ANSWER_TOKENS", 768)
-CHROMA_COLLECTION_NAME = "langchain"
-QUERY_STRUCTURE_INTENTS = {
-    "rights",
-    "procedure",
-    "penalty",
-    "deadline",
-    "condition",
-    "definition",
-    "authority",
-    "unknown",
-}
-STRICT_FILTER_CONFIDENCE = 0.8
-llm_session = requests.Session()
-chroma_client = chromadb.PersistentClient(path=TOPIC_DB_PATH or "chroma_db_law")
-vectordb = chroma_client.get_collection(CHROMA_COLLECTION_NAME)
-sentence_embedding_model = None
+from cache import redisClient, redis_ttl_seconds
+from graph_rag.pipeline import GraphLawPipeline, SUPPORTED_CHAT_MODELS
+from models import ACCESS_TOKEN_KEY, QuestionModel, Reference
 
 app = Flask(__name__)
 CORS(app)
-app.config['CORS_HEADERS'] = 'Content-Type'
+app.config["CORS_HEADERS"] = "Content-Type"
 
-def normalize_result_string(page_content):
-    result_string = page_content or ""
-    result_string = result_string.replace("\n", " ")
-    result_string = re.sub(r"\s+", r" ", result_string)
-    return result_string.strip()
+pipeline = None
+RAG_CACHE_VERSION = "graph-rag-v4"
+_redis_cache_cleared = False
+WEB_DIR = Path(os.getenv("WEB_DIR") or REPO_ROOT / "web")
+DEFAULT_CHAT_MODEL = os.getenv("DEFAULT_CHAT_MODEL", "gpt-5.5")
+QNA_THREADS = int(os.getenv("QNA_THREADS", "4"))
 
-def extract_json_object(text):
-    if not text:
-        raise ValueError("Empty model output")
-    text = text.strip()
-    text = re.sub(r"^```(?:json)?", "", text).strip()
-    text = re.sub(r"```$", "", text).strip()
-    start = text.find("{")
-    end = text.rfind("}")
-    if start < 0 or end < start:
-        raise ValueError("No JSON object found")
-    return json.loads(text[start:end + 1])
 
-def empty_structured_question(question):
-    return {
-        "original_question": question,
-        "search_query": normalize_result_string(question),
-        "intent": "unknown",
-        "legal_domain": None,
-        "entities": {
-            "actor": None,
-            "opponent": None,
-            "issue": None,
-            "time": None,
-            "amount": None,
-        },
-        "filters": {
-            "document_type": None,
-            "article_number": None,
-            "demuc_id": None,
-            "chuong_id": None,
-        },
-        "confidence": 0,
-    }
+def get_pipeline():
+    global pipeline
+    if pipeline is None:
+        pipeline = GraphLawPipeline()
+    return pipeline
 
-def sanitize_structured_question(question, structured_question):
-    fallback = empty_structured_question(question)
-    if not isinstance(structured_question, dict):
-        return fallback
 
-    result = fallback
-    result["original_question"] = str(structured_question.get("original_question") or question)
-    search_query = normalize_result_string(structured_question.get("search_query") or question)
-    result["search_query"] = search_query or normalize_result_string(question)
+def normalize_chat_model(model):
+    model = (model or DEFAULT_CHAT_MODEL or "gpt-5.5").strip()
+    if model not in SUPPORTED_CHAT_MODELS:
+        raise ValueError(f"Unsupported chat model: {model}")
+    return model
 
-    intent = structured_question.get("intent")
-    if intent not in QUERY_STRUCTURE_INTENTS:
-        intent = "unknown"
-    result["intent"] = intent
 
-    legal_domain = structured_question.get("legal_domain")
-    result["legal_domain"] = str(legal_domain).strip() if legal_domain else None
-
-    entities = structured_question.get("entities") if isinstance(structured_question.get("entities"), dict) else {}
-    for key in result["entities"]:
-        value = entities.get(key)
-        result["entities"][key] = str(value).strip() if value else None
-
-    filters = structured_question.get("filters") if isinstance(structured_question.get("filters"), dict) else {}
-    for key in result["filters"]:
-        value = filters.get(key)
-        result["filters"][key] = str(value).strip() if value else None
-
-    try:
-        confidence = float(structured_question.get("confidence", 0))
-    except (TypeError, ValueError):
-        confidence = 0
-    result["confidence"] = max(0, min(confidence, 1))
-    return result
-
-def structure_question(question):
-    prompt = f"""Bạn là bộ phân tích truy vấn cho hệ thống RAG pháp luật Việt Nam.
-
-Nhiệm vụ:
-- Chuyển câu hỏi người dùng thành JSON hợp lệ.
-- Không trả lời câu hỏi pháp luật.
-- Không bịa điều luật, số điều, nghị định, thông tư nếu người dùng không nêu.
-- Nếu không xác định được field nào, đặt null.
-- search_query phải là câu truy vấn ngắn, rõ, dùng để tìm văn bản pháp luật.
-
-intent chỉ được chọn một trong các giá trị:
-- rights: hỏi quyền/lợi ích/nghĩa vụ
-- procedure: hỏi phải làm gì, thủ tục, cách xử lý
-- penalty: hỏi mức phạt/chế tài
-- deadline: hỏi thời hạn
-- condition: hỏi điều kiện
-- definition: hỏi khái niệm
-- authority: hỏi cơ quan/thẩm quyền
-- unknown: không xác định
-
-Không dùng null cho intent. Nếu không chắc, dùng "unknown".
-
-Chỉ trả JSON. Không markdown.
-
-Schema:
-{{
-  "original_question": string,
-  "search_query": string,
-  "intent": string,
-  "legal_domain": string|null,
-  "entities": {{
-    "actor": string|null,
-    "opponent": string|null,
-    "issue": string|null,
-    "time": string|null,
-    "amount": string|null
-  }},
-  "filters": {{
-    "document_type": string|null,
-    "article_number": string|null,
-    "demuc_id": string|null,
-    "chuong_id": string|null
-  }},
-  "confidence": number
-}}
-
-Câu hỏi:
-{question}"""
-    payload = {
-        "model": QUERY_STRUCTURE_MODEL,
-        "messages": [
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": 0,
-        "top_p": 1,
-        "max_tokens": 512
-    }
-    try:
-        output = llm_session.post(
-            f"{LLM_BASE_URL}/chat/completions",
-            headers={"Content-Type": "application/json"},
-            json=payload,
-            timeout=LLM_TIMEOUT,
-        )
-        output.raise_for_status()
-        content = output.json()["choices"][0]["message"]["content"].strip()
-        return sanitize_structured_question(question, extract_json_object(content))
-    except Exception:
-        return empty_structured_question(question)
-
-def normalize_document_type_filter(document_type):
-    if not document_type:
-        return None
-    value = str(document_type).strip()
-    mapping = {
-        "luật": "Luật",
-        "lq": "Luật",
-        "nghị định": "Nghị định",
-        "nđ": "Nghị định",
-        "nd": "Nghị định",
-        "thông tư": "Thông tư",
-        "tt": "Thông tư",
-        "quyết định": "Quyết định",
-        "qđ": "Quyết định",
-        "qd": "Quyết định",
-    }
-    return mapping.get(value.lower(), value)
-
-def build_chroma_where(structured_question):
-    if not structured_question or structured_question.get("confidence", 0) < STRICT_FILTER_CONFIDENCE:
-        return None
-
-    filters = structured_question.get("filters") or {}
-    conditions = []
-
-    document_type = normalize_document_type_filter(filters.get("document_type"))
-    if document_type:
-        conditions.append({"document_type": document_type})
-
-    article_number = filters.get("article_number")
-    if article_number:
-        conditions.append({"article_number": str(article_number)})
-
-    demuc_id = filters.get("demuc_id")
-    if demuc_id:
-        conditions.append({"demuc_id": str(demuc_id)})
-
-    chuong_id = filters.get("chuong_id")
-    if chuong_id:
-        conditions.append({"chuong_id": str(chuong_id)})
-
-    if not conditions:
-        return None
-    if len(conditions) == 1:
-        return conditions[0]
-    return {"$and": conditions}
-
-def get_query_embedding(text):
-    global sentence_embedding_model
-    if EMBEDDING_PROVIDER == "sentence-transformer":
-        if sentence_embedding_model is None:
-            device = EMBEDDING_DEVICE
-            if device == "auto":
-                device = "cuda" if torch.cuda.is_available() else "cpu"
-            sentence_embedding_model = SentenceTransformer(
-                ST_MODEL_PATH,
-                device=device,
-                cache_folder=str(HF_CACHE_DIR / "sentence-transformers"),
-            )
-        return sentence_embedding_model.encode(
-            [text],
-            convert_to_numpy=True,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )[0].tolist()
-
-    payload = {
-        "model": EMBEDDING_MODEL,
-        "input": text
-    }
-    output = llm_session.post(
-        f"{LLM_BASE_URL}/embeddings",
-        headers={"Content-Type": "application/json"},
-        json=payload,
-        timeout=LLM_TIMEOUT,
-    )
-    output.raise_for_status()
-    data = output.json()["data"][0]["embedding"]
-    return data
-
-def query_vectordb(query_embedding, k, where=None):
-    query = {
-        "query_embeddings": [query_embedding],
-        "n_results": k,
-        "include": ["documents", "metadatas"]
-    }
-    if where:
-        query["where"] = where
-    return vectordb.query(**query)
-
-def retrieve_docs(question, k=RETRIEVAL_K, structured_question=None):
-    query_embedding = get_query_embedding(question)
-    where = build_chroma_where(structured_question)
-    if EMBEDDING_PROVIDER == "sentence-transformer":
-        try:
-            output = query_vectordb(query_embedding, k, where=where)
-            if where and not output.get("documents", [[]])[0]:
-                output = query_vectordb(query_embedding, k)
-        except Exception:
-            output = query_vectordb(query_embedding, k)
-    else:
-        try:
-            output = query_vectordb(query_embedding, k, where=where)
-            if where and not output.get("documents", [[]])[0]:
-                output = query_vectordb(query_embedding, k)
-        except Exception:
-            output = query_vectordb(query_embedding, k)
-    docs = []
-    documents = output.get("documents", [[]])[0]
-    metadatas = output.get("metadatas", [[]])[0]
-    for index, page_content in enumerate(documents):
-        metadata = metadatas[index] or {}
-        result_string = normalize_result_string(page_content)[:MAX_DOC_CHARS]
-        docs.append({
-            "id": metadata.get("id", ""),
-            "title": metadata.get("title", ""),
-            "content": result_string,
-            "demuc_id": metadata.get("demuc_id"),
-            "chuong_id": metadata.get("chuong_id"),
-            "article_id": metadata.get("article_id"),
-            "article_number": metadata.get("article_number"),
-            "article_code": metadata.get("article_code"),
-            "article_heading": metadata.get("article_heading"),
-            "document_type": metadata.get("document_type"),
-            "document_type_code": metadata.get("document_type_code"),
-            "chunk_index": metadata.get("chunk_index"),
-            "chunk_total": metadata.get("chunk_total"),
-        })
-    return docs
-
-def generate_response(question, context):
-    prompt = f"""Bạn đang trả lời một tình huống pháp luật bằng tiếng Việt.
-Dựa trên các căn cứ pháp luật được cung cấp bên dưới, hãy:
-- Xác định phần căn cứ nào liên quan trực tiếp hoặc gián tiếp đến tình huống.
-- Trả lời thực tế người hỏi nên làm gì tiếp theo.
-- Nêu rõ nếu căn cứ chỉ hỗ trợ một phần và cần thêm giấy tờ/thông tin.
-- Không bịa số điều hoặc nội dung không có trong căn cứ.
-- Không đưa mã định danh nội bộ trong ngoặc vào câu trả lời, ví dụ id hoặc chuỗi số dài.
-
-Các căn cứ pháp luật:
-{context[:MAX_CONTEXT_CHARS]}
-
-Câu hỏi/tình huống:
-{question}"""
-    payload = {
-        "model": LLM_MODEL,
-        "messages": [
-            {"role": "system", "content": "Bạn là trợ lý pháp luật Việt Nam. Trả lời có cấu trúc, thực tế, chỉ dựa trên căn cứ được cung cấp và nói rõ mức độ chắc chắn của căn cứ."},
-            {"role": "user", "content": prompt}
-        ],
-        "temperature": LLM_TEMPERATURE,
-        "top_p": LLM_TOP_P,
-        "max_tokens": MAX_ANSWER_TOKENS,
-    }
-    output = llm_session.post(
-        f"{LLM_BASE_URL}/chat/completions",
-        headers={"Content-Type": "application/json"},
-        json=payload,
-        timeout=LLM_TIMEOUT,
-    )
-    output.raise_for_status()
-    return output.json()["choices"][0]["message"]["content"].strip()
-
-def build_context(citation):
-    parts = []
-    for index, item in enumerate(citation, start=1):
-        title = item.get("title") or item.get("id") or f"Căn cứ {index}"
-        heading = f"[{index}] {title}"
-        parts.append(f"{heading}\n{item.get('content', '')}")
-    return "\n\n".join(parts).strip()[:MAX_CONTEXT_CHARS]
-
-def read_cached_answer(question):
-    cached = redisClient.get(question)
+def read_cached_answer(question, model):
+    cached = redisClient.get(cache_key(question, model))
     if not cached:
         return None
     return json.loads(cached.decode("utf-8"))
 
-def write_cached_answer(question, result):
-    redisClient.setex(question, redis_ttl_seconds, json.dumps(result, ensure_ascii=False))
 
-def answer_question(question, should_generate=True, use_cache=True):
+def cache_key(question, model):
+    return f"{RAG_CACHE_VERSION}:{model}:{question}"
+
+
+def clear_redis_answer_cache():
+    global _redis_cache_cleared
+    if _redis_cache_cleared:
+        return 0
+
+    pattern = f"{RAG_CACHE_VERSION}:*"
+    deleted = 0
+    batch = []
+    for key in redisClient.scan_iter(match=pattern, count=500):
+        batch.append(key)
+        if len(batch) >= 500:
+            deleted += redisClient.delete(*batch)
+            batch = []
+    if batch:
+        deleted += redisClient.delete(*batch)
+
+    _redis_cache_cleared = True
+    return deleted
+
+
+def cleanup_on_shutdown():
+    try:
+        deleted = clear_redis_answer_cache()
+        print(f"Cleared Redis answer cache: {deleted} keys")
+    except Exception as error:
+        print(f"Error while clearing Redis answer cache: {error}")
+
+
+def handle_shutdown_signal(signum, frame):
+    cleanup_on_shutdown()
+    raise SystemExit(0)
+
+
+def write_cached_answer(question, model, result):
+    redisClient.setex(cache_key(question, model), redis_ttl_seconds, json.dumps(result, ensure_ascii=False))
+
+
+def answer_question(question, model=None, should_generate=True, use_cache=True):
+    model = normalize_chat_model(model)
     if should_generate and use_cache:
-        cached = read_cached_answer(question)
+        cached = read_cached_answer(question, model)
         if cached:
             cached["cache_hit"] = True
             return cached
 
-    structured_question = structure_question(question) if USE_QUERY_STRUCTURE else empty_structured_question(question)
-    retrieval_query = structured_question.get("search_query") or question
-    citation = retrieve_docs(retrieval_query, structured_question=structured_question)
-    context = build_context(citation)
-    if not context:
-        raise RuntimeError("No context retrieved from Chroma DB")
-    response = generate_response(question, context) if should_generate else ""
-    result = {
-        "status": "success",
-        "question": question,
-        "structured_question": structured_question,
-        "citation": citation,
-        "response": response,
-    }
+    result = get_pipeline().ask(question, model=model)
+    result["model"] = model
+    if not should_generate:
+        result["response"] = ""
+
     if should_generate and use_cache:
-        write_cached_answer(question, result)
+        write_cached_answer(question, model, result)
     return result
 
-def print_terminal_result(result):
-    print("\n=== Retrieved documents ===")
-    for index, citation in enumerate(result["citation"], start=1):
-        title = citation.get("title") or citation.get("id") or f"Document {index}"
-        print(f"\n[{index}] {title}")
-        print(citation.get("content", ""))
 
+def print_terminal_result(result):
+    print("\n=== Graph RAG result ===")
+    print(f"Question type: {result.get('question_type')}")
+    print(f"Law ID: {result.get('law_id')}")
+    if result.get("law_ids"):
+        print("Law IDs:", ", ".join(result["law_ids"]))
+    if result.get("search_queries"):
+        print("Search queries:", ", ".join(result["search_queries"][:8]))
+    if result.get("chunk_ids"):
+        print("Chunk IDs:", ", ".join(result["chunk_ids"][:10]))
     if result.get("response"):
         print("\n=== Answer ===")
         if result.get("cache_hit"):
@@ -467,203 +144,370 @@ def print_terminal_result(result):
         print(result["response"])
     print()
 
-def run_terminal_test():
-    print("QNA terminal test mode")
-    print("Type a question and press Enter.")
-    print("Commands: :q to quit, :retrieve to toggle retrieval-only mode.")
-    retrieval_only = False
 
+def run_terminal_test():
+    print("Graph RAG terminal test mode")
+    print("Type a question and press Enter. Commands: :q, :quit, :shutdown to quit and clear Redis cache.")
     while True:
         try:
             question = input("\nQuestion> ").strip()
         except (EOFError, KeyboardInterrupt):
             print()
             break
-
         if not question:
             continue
-        if question.lower() in {":q", ":quit", "exit", "quit"}:
+        if question.lower() in {":q", ":quit", ":shutdown", "exit", "quit", "shutdown"}:
+            cleanup_on_shutdown()
             break
-        if question.lower() in {":retrieve", ":retrieval"}:
-            retrieval_only = not retrieval_only
-            mode = "retrieval only" if retrieval_only else "retrieval + generation"
-            print(f"Mode: {mode}")
-            continue
-
         try:
-            result = answer_question(question, should_generate=not retrieval_only)
-            print_terminal_result(result)
+            print_terminal_result(answer_question(question))
         except Exception as error:
             print(f"Error: {error}")
 
+
+def decode_email_from_request():
+    token = request.headers.get("Authorization", "")
+    if token.startswith("Bearer "):
+        token = token[7:]
+    decoded = jwt.decode(token, ACCESS_TOKEN_KEY, algorithms=["HS256"])
+    return decoded["email"]
+
+
 def save_references(question_id, citation):
     for item in citation:
-        Reference.create(**{
-            'question_id': question_id,
-            'mapc': item.get('id', ''),
-            'noidung': item.get('content', ''),
-            'ten': item.get('title', ''),
-        })
+        Reference.create(
+            **{
+                "question_id": question_id,
+                "mapc": item.get("id", ""),
+                "noidung": item.get("content", ""),
+                "ten": item.get("title", ""),
+            }
+        )
 
-@app.route('/api/v1/question', methods=['GET'])
+
+def build_chat_payload(question_rows, reference_rows):
+    references_by_question = {}
+    for reference in reference_rows:
+        references_by_question.setdefault(reference["question_id"], []).append(
+            {
+                "id": reference["mapc"],
+                "title": reference["ten"],
+                "content": reference["noidung"],
+                "demuc_id": None,
+                "chuong_id": None,
+            }
+        )
+
+    sessions = {}
+    for row in sorted(question_rows, key=lambda item: (item.get("chat_id") or item["id"], item["id"])):
+        chat_id = row.get("chat_id") or row["id"]
+        answer = references_by_question.get(row["id"], [])
+        turn = {
+            "id": row["id"],
+            "question_id": row["id"],
+            "question": row["question"],
+            "updatedAt": row["updatedAt"].strftime("%m/%d/%Y"),
+            "response": row["response"],
+            "model": row.get("model") or "",
+            "answer": answer,
+        }
+        session = sessions.setdefault(
+            chat_id,
+            {
+                "id": chat_id,
+                "chat_id": chat_id,
+                "email": row["email"],
+                "question": row["question"],
+                "updatedAt": row["updatedAt"].strftime("%m/%d/%Y"),
+                "response": row["response"],
+                "model": row.get("model") or "",
+                "answer": answer,
+                "messages": [],
+                "_updatedAt": row["updatedAt"],
+            },
+        )
+        session["messages"].append(turn)
+        if row["updatedAt"] >= session["_updatedAt"]:
+            session["updatedAt"] = row["updatedAt"].strftime("%m/%d/%Y")
+            session["response"] = row["response"]
+            session["model"] = row.get("model") or ""
+            session["answer"] = answer
+            session["_updatedAt"] = row["updatedAt"]
+
+    res = sorted(sessions.values(), key=lambda item: item["_updatedAt"], reverse=True)
+    for item in res:
+        item.pop("_updatedAt", None)
+    return res
+
+
+def build_chat_summary_payload(question_rows):
+    sessions = {}
+    for row in sorted(question_rows, key=lambda item: (item.get("chat_id") or item["id"], item["id"])):
+        chat_id = row.get("chat_id") or row["id"]
+        session = sessions.setdefault(
+            chat_id,
+            {
+                "id": chat_id,
+                "chat_id": chat_id,
+                "email": row["email"],
+                "question": row["question"],
+                "updatedAt": row["updatedAt"].strftime("%m/%d/%Y"),
+                "response": "",
+                "model": row.get("model") or "",
+                "answer": [],
+                "messages": [],
+                "_updatedAt": row["updatedAt"],
+            },
+        )
+        if row["updatedAt"] >= session["_updatedAt"]:
+            session["updatedAt"] = row["updatedAt"].strftime("%m/%d/%Y")
+            session["model"] = row.get("model") or ""
+            session["_updatedAt"] = row["updatedAt"]
+
+    res = sorted(sessions.values(), key=lambda item: item["_updatedAt"], reverse=True)
+    for item in res:
+        item.pop("_updatedAt", None)
+    return res
+
+
+def latest_chat_id_for_email(email):
+    last_row = (
+        QuestionModel.select(QuestionModel.chat_id, QuestionModel.id)
+        .where(QuestionModel.email == email)
+        .order_by(QuestionModel.updatedAt.desc(), QuestionModel.id.desc())
+        .first()
+    )
+    if not last_row:
+        return None
+    return last_row.chat_id or last_row.id
+
+
+@app.route("/", methods=["GET"])
+def serve_web_index():
+    response = send_from_directory(WEB_DIR, "index.html")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
+@app.route("/web/<path:path>", methods=["GET"])
+def serve_web_asset(path):
+    response = send_from_directory(WEB_DIR, path)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
+@app.route("/api/v1/models", methods=["GET"])
+def get_models():
+    return {"models": sorted(SUPPORTED_CHAT_MODELS), "default": normalize_chat_model(None)}, 200
+
+
+@app.route("/api/v1/question", methods=["GET"])
 def get_question(email=None):
-    token = request.headers.get('Authorization')
+    email = decode_email_from_request()
+    question_rows = list(
+        QuestionModel.select(
+            QuestionModel.id,
+            QuestionModel.email,
+            QuestionModel.question,
+            QuestionModel.updatedAt,
+            QuestionModel.model,
+            QuestionModel.chat_id,
+        )
+        .where(QuestionModel.email == email)
+        .dicts()
+    )
+    if not question_rows:
+        return [], 200
 
-    if token.startswith('Bearer '):
-        token = token[7:]
-        
-    decoded = jwt.decode(token, ACCESS_TOKEN_KEY, algorithms=['HS256'])
-    email = decoded['email']
-    if email:
-        query = QuestionModel.select().where(email == QuestionModel.email).dicts()
-        res = []
-        for row in query:
-            answer = []
-            query1 = Reference.select().where(row['id'] == Reference.question_id).dicts()
-            for r in query1: 
-                answer.append({
-                    "id": r['mapc'],
-                    "title": r['ten'],
-                    "content": r['noidung'],
-                    "demuc_id": None,
-                    "chuong_id": None,
-                })
-            res.append({
-                "id": row['id'],
-                "email": row['email'],
-                "question": row['question'],
-                "updatedAt": row['updatedAt'].strftime("%m/%d/%Y"),
-                "response": row['response'],
-                "answer": answer
-            })
-        return res, 201
-    
-@app.route('/api/v1/question', methods=['POST'])
-def add_question():
-    token = request.headers.get('Authorization')
+    return build_chat_summary_payload(question_rows), 200
 
-    if token.startswith('Bearer '):
-        token = token[7:]
-    data = request.get_json()
-    decoded = jwt.decode(token, ACCESS_TOKEN_KEY, algorithms=['HS256'])
 
-    email = decoded['email']
-
+@app.route("/api/v1/question/<int:chat_id>", methods=["GET"])
+def get_chat(chat_id):
     try:
-        question = data["question"]
-    except:
-        return {
-            "status": "error",
-            "response": "No question in payload",
-        }, 400
-    
-    if not question:
-        return {
-            "status": "error",
-            "response": "Question can not be empty",
-        }, 400
-
-    try:
-        result = answer_question(question)
+        email = decode_email_from_request()
     except Exception:
-        return {
-            "status": "error",
-            "response": "Error while retrieving context from DB or generating answer",
-        }, 500
+        return {"status": "error", "response": "Need authentication"}, 400
+    question_rows = list(
+        QuestionModel.select().where((QuestionModel.email == email) & (QuestionModel.chat_id == chat_id)).dicts()
+    )
+    if not question_rows:
+        return {"status": "error", "response": "Chat not found"}, 404
+    question_ids = [row["id"] for row in question_rows]
+    reference_rows = list(Reference.select().where(Reference.question_id.in_(question_ids)).dicts())
+    payload = build_chat_payload(question_rows, reference_rows)
+    return (payload[0] if payload else {"id": chat_id, "chat_id": chat_id, "messages": []}), 200
 
-    citation = result["citation"]
-    response = result["response"]
-    query = QuestionModel.create(**{"email": email, "question": question ,"response": response})
-    save_references(query.id, citation)
+
+@app.route("/api/v1/question", methods=["POST"])
+def add_question():
+    try:
+        email = decode_email_from_request()
+    except Exception:
+        return {"status": "error", "response": "Need authentication"}, 400
+
+    data = request.get_json() or {}
+    question = data.get("question")
+    chat_id = data.get("chat_id")
+    new_chat = bool(data.get("new_chat"))
+    try:
+        model = normalize_chat_model(data.get("model"))
+    except ValueError as error:
+        return {"status": "error", "response": str(error)}, 400
+    if not question:
+        return {"status": "error", "response": "Question can not be empty"}, 400
+    if chat_id:
+        try:
+            chat_id = int(chat_id)
+        except (TypeError, ValueError):
+            return {"status": "error", "response": "Invalid chat_id"}, 400
+        chat = QuestionModel.get_or_none((QuestionModel.chat_id == chat_id) & (QuestionModel.email == email))
+        if not chat:
+            return {"status": "error", "response": "Chat not found"}, 404
+    elif not new_chat:
+        chat_id = latest_chat_id_for_email(email)
+
+    try:
+        result = answer_question(question, model=model)
+    except Exception as error:
+        return {"status": "error", "response": f"Error while running Graph RAG pipeline: {error}"}, 500
+
+    query = QuestionModel.create(
+        **{
+            "email": email,
+            "question": question,
+            "response": result.get("response", ""),
+            "model": model,
+            "chat_id": chat_id,
+        }
+    )
+    if not chat_id:
+        chat_id = query.id
+        query.chat_id = chat_id
+        query.save()
+    save_references(query.id, result.get("citation", []))
+    result["question_id"] = query.id
+    result["chat_id"] = chat_id
     return result, 200
 
-@app.route('/api/v1/question-with-context', methods=['POST'])
+
+@app.route("/api/v1/question-with-context", methods=["POST"])
 def add_question_with_context():
-    try: 
-        token = request.headers.get('Authorization')
-
-        if token.startswith('Bearer '):
-            token = token[7:]
-        data = request.get_json()
-        decoded = jwt.decode(token, ACCESS_TOKEN_KEY, algorithms=['HS256'])
-
-        email = decoded['email']
-    except: 
-         return {
-            "status": "error",
-            "response": "Need authencation",
-        }, 400
-         
     try:
-        question = data["question"]
-        context = data["context"]
-    except:
-        return {
-            "status": "error",
-            "response": "Question or Context not found in the payload",
-        }, 400
-    
+        email = decode_email_from_request()
+    except Exception:
+        return {"status": "error", "response": "Need authentication"}, 400
+
+    data = request.get_json() or {}
+    question = data.get("question")
+    context = data.get("context")
+    try:
+        model = normalize_chat_model(data.get("model"))
+    except ValueError as error:
+        return {"status": "error", "response": str(error)}, 400
     if not question:
-        return {
-            "status": "error",
-            "response": "Question can not be empty",
-        }, 400
+        return {"status": "error", "response": "Question can not be empty"}, 400
     if not context:
-        return {
-            "status": "error",
-            "response": "Context can not be empty",
-        }, 400
-    cached = read_cached_answer(question)
-    if cached:
-        cached["cache_hit"] = True
-        return cached, 200
-
-    structured_question = structure_question(question) if USE_QUERY_STRUCTURE else empty_structured_question(question)
-    retrieval_query = structured_question.get("search_query") or question
-    
-    try:
-        citation = retrieve_docs(retrieval_query, structured_question=structured_question)
-    except Exception:
-        return {
-            "status": "error",
-            "response": "Error while retrieving context from DB",
-        }, 500
+        return {"status": "error", "response": "Context can not be empty"}, 400
 
     try:
-        response = generate_response(question, context)
-    except Exception:
-        return {
-            "status": "error",
-            "response": "Error while generating answer",
-        }, 500
+        response = get_pipeline().generate_direct_answer(question, context=context, model=model)
+    except Exception as error:
+        return {"status": "error", "response": f"Error while generating answer: {error}"}, 500
 
-    query = QuestionModel.create(**{"email": email, "question": question ,"response": response})
-    save_references(query.id, citation)
-    res = {
+    query = QuestionModel.create(**{"email": email, "question": question, "response": response, "model": model})
+    query.chat_id = query.id
+    query.save()
+    result = {
         "status": "success",
         "question": question,
-        "structured_question": structured_question,
-        "citation": citation,
+        "question_type": "direct-context",
+        "law_id": None,
+        "citation": [],
         "response": response,
+        "model": model,
     }
-    write_cached_answer(question, res)
-    return res, 200
+    save_references(query.id, [])
+    result["question_id"] = query.id
+    result["chat_id"] = query.chat_id
+    write_cached_answer(question, model, result)
+    return result, 200
 
 
-@app.route('/api/v1/question/<int:question_id>', methods=['PUT'])
+@app.route("/api/v1/question/<int:question_id>", methods=["PUT"])
 def update_question(question_id):
+    try:
+        email = decode_email_from_request()
+    except Exception:
+        return {"status": "error", "response": "Need authentication"}, 400
     data = request.get_json()
-    QuestionModel.update(**data).where(QuestionModel.id == question_id).execute()
-    return '', 204
+    QuestionModel.update(**data).where((QuestionModel.id == question_id) & (QuestionModel.email == email)).execute()
+    return "", 204
 
-@app.route('/api/v1/question/<int:question_id>', methods=['DELETE'])
+
+@app.route("/api/v1/question/<int:question_id>", methods=["DELETE"])
 def delete_question(question_id):
-    QuestionModel.delete().where(QuestionModel.id == question_id).execute()
-    return '', 204
+    try:
+        email = decode_email_from_request()
+    except Exception:
+        return {"status": "error", "response": "Need authentication"}, 400
+    question = QuestionModel.get_or_none((QuestionModel.id == question_id) & (QuestionModel.email == email))
+    if question:
+        Reference.delete().where(Reference.question_id == question.id).execute()
+        question.delete_instance()
+    return "", 204
+
+
+@app.route("/api/v1/question/chat/<int:chat_id>", methods=["DELETE"])
+def delete_chat(chat_id):
+    try:
+        email = decode_email_from_request()
+    except Exception:
+        return {"status": "error", "response": "Need authentication"}, 400
+
+    question_rows = list(
+        QuestionModel.select().where((QuestionModel.email == email) & (QuestionModel.chat_id == chat_id)).dicts()
+    )
+    if not question_rows:
+        return {"status": "error", "response": "Chat not found"}, 404
+
+    question_ids = [row["id"] for row in question_rows]
+    Reference.delete().where(Reference.question_id.in_(question_ids)).execute()
+    QuestionModel.delete().where(QuestionModel.id.in_(question_ids)).execute()
+    return "", 204
+
+
+@app.route("/api/v1/account-data", methods=["DELETE"])
+def delete_account_data():
+    try:
+        email = decode_email_from_request()
+    except Exception:
+        return {"status": "error", "response": "Need authentication"}, 400
+
+    question_ids = [
+        row.id
+        for row in QuestionModel.select(QuestionModel.id).where(QuestionModel.email == email)
+    ]
+    if question_ids:
+        Reference.delete().where(Reference.question_id.in_(question_ids)).execute()
+        QuestionModel.delete().where(QuestionModel.id.in_(question_ids)).execute()
+    return "", 204
+
 
 if __name__ == "__main__":
+    atexit.register(cleanup_on_shutdown)
+    signal.signal(signal.SIGINT, handle_shutdown_signal)
+    signal.signal(signal.SIGTERM, handle_shutdown_signal)
+
     if "--terminal" in sys.argv or "--test" in sys.argv:
         run_terminal_test()
+    elif "--server" in sys.argv or len(sys.argv) == 1:
+        print("Graph RAG QNA server is running at http://localhost:5001")
+        serve(app, host="0.0.0.0", port=5001, threads=QNA_THREADS)
     else:
-        print('QNA server is running. ')
-        serve(app, host='0.0.0.0', port=5001, threads=1)
+        print("Unknown mode. Use --server or --terminal.")
+        raise SystemExit(2)

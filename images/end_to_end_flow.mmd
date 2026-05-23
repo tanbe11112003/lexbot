@@ -1,0 +1,86 @@
+flowchart TB
+  classDef client fill:#f8fbff,stroke:#356b9a,stroke-width:1px,color:#1f2933
+  classDef api fill:#fff8e6,stroke:#b7791f,stroke-width:1px,color:#1f2933
+  classDef rag fill:#eefaf1,stroke:#2f855a,stroke-width:1px,color:#1f2933
+  classDef store fill:#f4f0ff,stroke:#6b46c1,stroke-width:1px,color:#1f2933
+  classDef decision fill:#fff5f5,stroke:#c53030,stroke-width:1px,color:#1f2933
+
+  USER["User or web client"]:::client
+  WEB["Flask static web<br/>GET / and /web/*"]:::client
+  POST["POST /api/v1/question<br/>question, chat_id, new_chat, model"]:::api
+  JWT["decode_email_from_request<br/>Bearer JWT email"]:::api
+  MODEL["normalize_chat_model<br/>gpt-5.5 or gemini-2.5-flash"]:::api
+  CHAT_CHECK["Existing chat check<br/>QuestionModel by chat_id and email"]:::api
+  CACHE_DECISION{"Redis answer cache hit?<br/>graph-rag-v4:model:question"}:::decision
+  CACHE_RETURN["Return cached result<br/>cache_hit = true"]:::api
+
+  subgraph Pipeline["GraphLawPipeline.ask"]
+    ANALYZE["analyze_query<br/>LLM returns category, law_id, law_ids, search_queries, extracted_facts"]:::rag
+    CATEGORY{"category"}:::decision
+    NONLEGAL["NON_LEGAL<br/>generate_direct_answer"]:::rag
+    LAW_DETECT["law_id from analysis<br/>or detect_law(question)"]:::rag
+    GRAPH_LOOKUP{"GRAPH_LOOKUP?"}:::decision
+    ARTICLE_LOOKUP{"Article number present?"}:::decision
+    ARTICLE_GRAPH["run_article_graph_lookup<br/>article_number_search_chunks + expand_graph_context"]:::rag
+    DIRECT_OK{"Structural lookup<br/>without content terms?"}:::decision
+    DIRECT_GRAPH["run_direct_graph_lookup<br/>LLM generated read-only Cypher"]:::rag
+    CONSULT["consultation_result"]:::rag
+    RELATED["related_law_ids<br/>primary law plus detected related laws"]:::rag
+    RETRIEVE["retrieve_chunks per law<br/>article number, keyword, vector search"]:::rag
+    EXPAND["expand_graph_context<br/>collect sibling chunks by article"]:::rag
+    COMPOSE["compose_answer<br/>answer only from Neo4j contexts"]:::rag
+  end
+
+  REDIS["Redis<br/>TTL from REDIS_TTL_SECONDS, default 86400"]:::store
+  NEO4J["Neo4j<br/>Law, Chapter, Article, Clause, Point, Chunk, vector index"]:::store
+  LLM["Chat completion provider<br/>OpenAI-compatible endpoint or Gemini fallback on quota"]:::store
+  MYSQL["MySQL qna<br/>QuestionModel and Reference"]:::store
+
+  SAVE["Create QuestionModel<br/>set chat_id when new chat"]:::api
+  SAVE_REF["save_references<br/>citation -> Reference rows"]:::api
+  RESPONSE["HTTP 200 result<br/>question_id, chat_id, response, citations, contexts"]:::api
+
+  USER --> WEB
+  USER --> POST
+  WEB --> POST
+  POST --> JWT
+  JWT --> MODEL
+  MODEL --> CHAT_CHECK
+  CHAT_CHECK --> CACHE_DECISION
+  CACHE_DECISION -- Yes --> CACHE_RETURN
+  CACHE_RETURN --> RESPONSE
+  CACHE_DECISION -- No --> ANALYZE
+  CACHE_DECISION -. read .-> REDIS
+  ANALYZE --> CATEGORY
+  ANALYZE --> LLM
+  CATEGORY -- NON_LEGAL --> NONLEGAL
+  NONLEGAL --> LLM
+  CATEGORY -- GRAPH_LOOKUP or CONSULTATION --> LAW_DETECT
+  LAW_DETECT --> GRAPH_LOOKUP
+  LAW_DETECT --> NEO4J
+  GRAPH_LOOKUP -- Yes --> ARTICLE_LOOKUP
+  ARTICLE_LOOKUP -- Yes --> ARTICLE_GRAPH
+  ARTICLE_GRAPH --> NEO4J
+  ARTICLE_GRAPH --> LLM
+  ARTICLE_LOOKUP -- No --> DIRECT_OK
+  DIRECT_OK -- Yes --> DIRECT_GRAPH
+  DIRECT_GRAPH --> NEO4J
+  DIRECT_GRAPH --> LLM
+  DIRECT_OK -- No --> CONSULT
+  GRAPH_LOOKUP -- No --> CONSULT
+  CONSULT --> RELATED
+  RELATED --> RETRIEVE
+  RETRIEVE --> NEO4J
+  RETRIEVE --> EXPAND
+  EXPAND --> NEO4J
+  EXPAND --> COMPOSE
+  COMPOSE --> LLM
+  NONLEGAL --> SAVE
+  ARTICLE_GRAPH --> SAVE
+  DIRECT_GRAPH --> SAVE
+  COMPOSE --> SAVE
+  SAVE --> SAVE_REF
+  SAVE --> MYSQL
+  SAVE_REF --> MYSQL
+  SAVE -. write setex .-> REDIS
+  SAVE_REF --> RESPONSE

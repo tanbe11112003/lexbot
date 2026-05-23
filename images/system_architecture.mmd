@@ -1,0 +1,84 @@
+flowchart TB
+  classDef frontend fill:#f8fbff,stroke:#356b9a,stroke-width:1px,color:#1f2933
+  classDef backend fill:#fff8e6,stroke:#b7791f,stroke-width:1px,color:#1f2933
+  classDef rag fill:#eefaf1,stroke:#2f855a,stroke-width:1px,color:#1f2933
+  classDef data fill:#f4f0ff,stroke:#6b46c1,stroke-width:1px,color:#1f2933
+  classDef eval fill:#fff5f5,stroke:#c53030,stroke-width:1px,color:#1f2933
+
+  subgraph ClientLayer["Client and API layer"]
+    WEB["backend/web served by Flask<br/>GET / and GET /web/*"]:::frontend
+    API["backend/rag/app.py<br/>Flask + CORS + Waitress"]:::backend
+    ROUTES["Routes<br/>/api/v1/models<br/>/api/v1/question<br/>/api/v1/question/{chat_id}<br/>/api/v1/question-with-context"]:::backend
+    AUTH["JWT auth<br/>Authorization Bearer token -> email"]:::backend
+  end
+
+  subgraph PersistenceLayer["Conversation persistence and cache"]
+    MYSQL["MySQL database qna<br/>QuestionModel, Reference"]:::data
+    REDIS["Redis answer cache<br/>key graph-rag-v4:model:question"]:::data
+  end
+
+  subgraph RagRuntime["Graph RAG runtime"]
+    PIPELINE["GraphLawPipeline"]:::rag
+    QUERY_ANALYSIS["Query analysis<br/>GRAPH_LOOKUP, CONSULTATION, NON_LEGAL"]:::rag
+    LAW_SELECT["Law selection<br/>available_laws and detect_law"]:::rag
+    RETRIEVAL["Hybrid retrieval<br/>article number + keyword + vector"]:::rag
+    GRAPH_CONTEXT["Graph context expansion<br/>article sibling Chunk texts"]:::rag
+    ANSWER["Answer composition<br/>context-grounded response"]:::rag
+    EMBED_QUERY["SentenceTransformer query embedding<br/>paraphrase-multilingual-MiniLM-L12-v2"]:::rag
+    CHAT_PROVIDER["Chat completions<br/>gpt-5.5 default<br/>gemini-2.5-flash supported and quota fallback"]:::rag
+  end
+
+  subgraph Neo4jLayer["Neo4j legal knowledge graph"]
+    LEGAL_GRAPH["Legal graph<br/>Law -> Chapter -> Article -> Clause -> Point"]:::data
+    CHUNKS["Chunk nodes<br/>text, search_text, article metadata, embedding"]:::data
+    NEO_INDEX["Indexes<br/>chunk_law_id<br/>chunk_law_article_number<br/>chunk_law_source_article_number<br/>chunk_embedding_index"]:::data
+  end
+
+  subgraph BuildLayer["Offline graph build pipeline"]
+    RAW["Source data<br/>pddieu.csv + law-crawler/phap-dien JSON"]:::data
+    STRUCTURE["build_structures.py<br/>filters 5 configured law specs"]:::backend
+    IMPORT["import_graph.py<br/>imports Law/Chapter/Article/Clause/Point"]:::backend
+    INDEX["build_index.py<br/>creates Chunk nodes and embeddings"]:::backend
+    STRUCT_FILES["graph_rag_data/data/*_structure.json<br/>graph_rag_data/corpus_5_topics.csv"]:::data
+  end
+
+  subgraph EvalLayer["Evaluation"]
+    EVAL_Q["evaluation/eval_questions.csv"]:::eval
+    EVAL_RUN["evaluation/evaluate_rag.py"]:::eval
+    EVAL_OUT["evaluation/runs<br/>eval_results.csv, eval_summary.json, eval_dashboard.png, eval_checkpoint.jsonl"]:::eval
+  end
+
+  WEB --> API
+  API --> ROUTES
+  ROUTES --> AUTH
+  AUTH --> REDIS
+  AUTH --> PIPELINE
+  PIPELINE --> QUERY_ANALYSIS
+  QUERY_ANALYSIS --> LAW_SELECT
+  LAW_SELECT --> RETRIEVAL
+  RETRIEVAL --> EMBED_QUERY
+  EMBED_QUERY --> CHUNKS
+  RETRIEVAL --> LEGAL_GRAPH
+  RETRIEVAL --> NEO_INDEX
+  RETRIEVAL --> GRAPH_CONTEXT
+  GRAPH_CONTEXT --> LEGAL_GRAPH
+  GRAPH_CONTEXT --> CHUNKS
+  GRAPH_CONTEXT --> ANSWER
+  QUERY_ANALYSIS --> CHAT_PROVIDER
+  LAW_SELECT --> CHAT_PROVIDER
+  ANSWER --> CHAT_PROVIDER
+  API --> MYSQL
+  API --> REDIS
+
+  RAW --> STRUCTURE
+  STRUCTURE --> STRUCT_FILES
+  STRUCT_FILES --> IMPORT
+  IMPORT --> LEGAL_GRAPH
+  STRUCT_FILES --> INDEX
+  INDEX --> CHUNKS
+  INDEX --> NEO_INDEX
+
+  EVAL_Q --> EVAL_RUN
+  EVAL_RUN --> PIPELINE
+  EVAL_RUN --> CHAT_PROVIDER
+  EVAL_RUN --> EVAL_OUT

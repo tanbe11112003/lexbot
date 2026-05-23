@@ -1,0 +1,63 @@
+flowchart TB
+  classDef data fill:#f8fbff,stroke:#356b9a,stroke-width:1px,color:#1f2933
+  classDef process fill:#fff8e6,stroke:#b7791f,stroke-width:1px,color:#1f2933
+  classDef neo fill:#eefaf1,stroke:#2f855a,stroke-width:1px,color:#1f2933
+  classDef index fill:#f4f0ff,stroke:#6b46c1,stroke-width:1px,color:#1f2933
+  classDef runtime fill:#fff5f5,stroke:#c53030,stroke-width:1px,color:#1f2933
+
+  subgraph Sources["Source files"]
+    CRAWLER["law-crawler/phap-dien<br/>chude.json, demuc.json, treeNode.json"]:::data
+    CORPUS["backend/rag/corpus/pddieu.csv"]:::data
+  end
+
+  subgraph Structure["Structure build"]
+    BUILD_STRUCT["graph_rag/build_structures.py"]:::process
+    FILTERED["graph_rag_data/corpus_5_topics.csv"]:::data
+    STRUCT_JSON["graph_rag_data/data/*_structure.json<br/>5 law structure files"]:::data
+  end
+
+  subgraph Import["Neo4j legal graph import"]
+    IMPORT_GRAPH["graph_rag/import_graph.py"]:::process
+    LAW["Law<br/>id, name, field, mode, source, article_count"]:::neo
+    CHAPTER["Chapter<br/>uuid, law_id, number, title, source_id"]:::neo
+    ARTICLE["Article<br/>uuid, law_id, number, code, title, heading, preamble, source_id"]:::neo
+    CLAUSE["Clause<br/>uuid, number, text"]:::neo
+    POINT["Point<br/>uuid, letter, text"]:::neo
+  end
+
+  subgraph ChunkIndex["Neo4j chunk and vector index"]
+    BUILD_INDEX["graph_rag/build_index.py"]:::process
+    CHUNK["Chunk<br/>id, law_id, text, search_text, article_number, article_code, article_source, embedding"]:::neo
+    EMBED["SentenceTransformer<br/>sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"]:::process
+    LOOKUP_INDEXES["Lookup indexes<br/>chunk_law_id<br/>chunk_law_article_number<br/>chunk_law_source_article_number"]:::index
+    VECTOR_INDEX["Vector index<br/>chunk_embedding_index<br/>cosine similarity"]:::index
+  end
+
+  subgraph Constraints["Neo4j uniqueness constraints"]
+    CONSTRAINTS["law_id, chapter_uuid, article_uuid,<br/>clause_uuid, point_uuid, chunk_id"]:::index
+  end
+
+  CRAWLER --> BUILD_STRUCT
+  CORPUS --> BUILD_STRUCT
+  BUILD_STRUCT --> FILTERED
+  BUILD_STRUCT --> STRUCT_JSON
+  STRUCT_JSON --> IMPORT_GRAPH
+  IMPORT_GRAPH --> LAW
+  LAW -- HAS_CHAPTER --> CHAPTER
+  CHAPTER -- HAS_ARTICLE --> ARTICLE
+  ARTICLE -- HAS_CLAUSE --> CLAUSE
+  CLAUSE -- HAS_POINT --> POINT
+  STRUCT_JSON --> BUILD_INDEX
+  LAW --> BUILD_INDEX
+  ARTICLE --> BUILD_INDEX
+  CLAUSE --> BUILD_INDEX
+  POINT --> BUILD_INDEX
+  BUILD_INDEX --> CHUNK
+  ARTICLE -- HAS_CHUNK for article preamble or leaf article --> CHUNK
+  CLAUSE -- HAS_CHUNK for leaf clause --> CHUNK
+  POINT -- HAS_CHUNK for point --> CHUNK
+  EMBED --> BUILD_INDEX
+  CHUNK --> LOOKUP_INDEXES
+  CHUNK --> VECTOR_INDEX
+  IMPORT_GRAPH --> CONSTRAINTS
+  BUILD_INDEX --> CONSTRAINTS
