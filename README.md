@@ -119,7 +119,8 @@ uvicorn app.main:app --reload
 Repository đã có cấu hình ở root để Railpack nhận diện backend Python/FastAPI:
 
 ```text
-requirements.txt  -> trỏ tới backend/requirements.txt
+requirements.txt  -> chứa dependency để Railpack cài từ root
+.python-version   -> khóa Python 3.11 cho dependency ML/NLP ổn định hơn
 railpack.json     -> dùng provider python và chạy bash start.sh
 start.sh          -> cd backend rồi chạy uvicorn theo PORT của Railway
 ```
