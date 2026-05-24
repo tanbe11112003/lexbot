@@ -1,0 +1,7 @@
+id,text,substance_id,normalized_to
+subalias_ke,ke,substance_ketamine,Ketamine
+subalias_khay,khay,substance_ketamine,Ketamine
+subalias_keo,kẹo,substance_mdma,MDMA/thuốc lắc/ma túy tổng hợp
+subalias_thuoc_lac,thuốc lắc,substance_mdma,MDMA/thuốc lắc/ma túy tổng hợp
+subalias_da,đá,substance_methamphetamine,Methamphetamine/ma túy đá
+subalias_hang_trang,hàng trắng,substance_heroin,Heroin

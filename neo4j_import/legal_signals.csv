@@ -1,0 +1,9 @@
+id,name,signal_type,description
+signal_drug_use,Dấu hiệu sử dụng trái phép chất ma túy,drug,"Từ lóng/hành vi liên quan sử dụng ma túy; cần đối chiếu Điều 256a, 255, 249-252 tùy hành vi."
+signal_drug_organization,Dấu hiệu tổ chức sử dụng trái phép chất ma túy,drug,"Có chuẩn bị địa điểm, rủ rê, phân công, cung cấp ma túy hoặc dụng cụ."
+signal_accomplice,Dấu hiệu đồng phạm/giúp sức,general_rule,Cần đối chiếu Điều 17 về đồng phạm và vai trò người tổ chức/thực hành/xúi giục/giúp sức.
+signal_concealment,Dấu hiệu che giấu tội phạm,general_rule,Cần đối chiếu Điều 18 và Điều 389 tùy tội được che giấu.
+signal_non_denunciation,Dấu hiệu không tố giác tội phạm,general_rule,Cần đối chiếu Điều 19 và Điều 390.
+signal_intoxication,"Dấu hiệu phạm tội do dùng rượu, bia hoặc chất kích thích",general_rule,Cần đối chiếu Điều 13.
+signal_national_security,Dấu hiệu an ninh quốc gia/chính trị cần kiểm tra,national_security,"Từ lóng chính trị chỉ là tín hiệu, không phải căn cứ định tội; cần kiểm tra đủ yếu tố cấu thành."
+signal_forest_product,Dấu hiệu lâm sản/gỗ nhóm nguy cấp quý hiếm,forest,Cần đối chiếu Điều 232 và danh mục chuyên ngành IA/IIA/CITES.

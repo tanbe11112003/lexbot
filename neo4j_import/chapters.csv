@@ -1,0 +1,27 @@
+id,part_node_id,chapter_id,name
+chapter_nhat_i,part_nhat,I,ĐIỀU KHOẢN CƠ BẢN
+chapter_nhat_ii,part_nhat,II,HIỆU LỰC CỦA BỘ LUẬT HÌNH SỰ
+chapter_nhat_iii,part_nhat,III,TỘI PHẠM
+chapter_nhat_iv,part_nhat,IV,NHỮNG TRƯỜNG HỢP LOẠI TRỪ TRÁCH NHIỆM HÌNH SỰ
+chapter_nhat_v,part_nhat,V,"THỜI HIỆU TRUY CỨU TRÁCH NHIỆM HÌNH SỰ, MIỄN TRÁCH NHIỆM HÌNH SỰ"
+chapter_nhat_vi,part_nhat,VI,HÌNH PHẠT
+chapter_nhat_vii,part_nhat,VII,CÁC BIỆN PHÁP TƯ PHÁP
+chapter_nhat_viii,part_nhat,VIII,QUYẾT ĐỊNH HÌNH PHẠT
+chapter_nhat_ix,part_nhat,IX,"THỜI HIỆU THI HÀNH BẢN ÁN, MIỄN CHẤP HÀNH HÌNH PHẠT, GIẢM THỜI HẠN CHẤP HÀNH HÌNH PHẠT"
+chapter_nhat_x,part_nhat,X,XÓA ÁN TÍCH
+chapter_nhat_xi,part_nhat,XI,NHỮNG QUY ĐỊNH ĐỐI VỚI PHÁP NHÂN THƯƠNG MẠI PHẠM TỘI
+chapter_nhat_xii,part_nhat,XII,NHỮNG QUY ĐỊNH ĐỐI VỚI NGƯỜI DƯỚI 18 TUỔI PHẠM TỘI
+chapter_hai_xiii,part_hai,XIII,CÁC TỘI XÂM PHẠM AN NINH QUỐC GIA
+chapter_hai_xiv,part_hai,XIV,"CÁC TỘI XÂM PHẠM TÍNH MẠNG, SỨC KHỎE, NHÂN PHẨM, DANH DỰ CỦA CON NGƯỜI"
+chapter_hai_xv,part_hai,XV,"CÁC TỘI XÂM PHẠM QUYỀN TỰ DO CỦA CON NGƯỜI, QUYỀN TỰ DO, DÂN CHỦ CỦA CÔNG DÂN"
+chapter_hai_xvi,part_hai,XVI,CÁC TỘI XÂM PHẠM SỞ HỮU
+chapter_hai_xvii,part_hai,XVII,CÁC TỘI XÂM PHẠM CHẾ ĐỘ HÔN NHÂN VÀ GIA ĐÌNH
+chapter_hai_xviii,part_hai,XVIII,CÁC TỘI XÂM PHẠM TRẬT TỰ QUẢN LÝ KINH TẾ
+chapter_hai_xix,part_hai,XIX,CÁC TỘI PHẠM VỀ MÔI TRƯỜNG
+chapter_hai_xx,part_hai,XX,CÁC TỘI PHẠM VỀ MA TÚY
+chapter_hai_xxi,part_hai,XXI,"CÁC TỘI XÂM PHẠM AN TOÀN CÔNG CỘNG, TRẬT TỰ CÔNG CỘNG"
+chapter_hai_xxii,part_hai,XXII,CÁC TỘI XÂM PHẠM TRẬT TỰ QUẢN LÝ HÀNH CHÍNH
+chapter_hai_xxiii,part_hai,XXIII,CÁC TỘI PHẠM VỀ CHỨC VỤ
+chapter_hai_xxiv,part_hai,XXIV,CÁC TỘI XÂM PHẠM HOẠT ĐỘNG TƯ PHÁP
+chapter_hai_xxv,part_hai,XXV,"CÁC TỘI XÂM PHẠM NGHĨA VỤ, TRÁCH NHIỆM CỦA QUÂN NHÂN VÀ TRÁCH NHIỆM CỦA NGƯỜI PHỐI THUỘC VỚI QUÂN ĐỘI TRONG CHIẾN ĐẤU, PHỤC VỤ CHIẾN ĐẤU"
+chapter_hai_xxvi,part_hai,XXVI,"CÁC TỘI PHÁ HOẠI HÒA BÌNH, CHỐNG LOÀI NGƯỜI VÀ TỘI PHẠM CHIẾN TRANH"

@@ -1,0 +1,16 @@
+signal_id,article_code
+signal_drug_use,256a
+signal_drug_organization,255
+signal_drug_use,249
+signal_drug_use,250
+signal_drug_use,251
+signal_drug_use,252
+signal_accomplice,17
+signal_concealment,18
+signal_non_denunciation,19
+signal_intoxication,13
+signal_national_security,108
+signal_national_security,109
+signal_national_security,117
+signal_forest_product,232
+signal_forest_product,243

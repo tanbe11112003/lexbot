@@ -1,0 +1,13 @@
+id,text,normalized_to,category,signal_id,concept_id,substance_id
+slang_bay_phong,bay phòng,sử dụng trái phép chất ma túy,drug_slang,signal_drug_use,concept_su_dung_trai_phep_chat_ma_tuy,
+slang_di_bay,đi bay,sử dụng trái phép chất ma túy,drug_slang,signal_drug_use,concept_su_dung_trai_phep_chat_ma_tuy,
+slang_ke,ke,ketamine,substance_alias,,,substance_ketamine
+slang_khay,khay,ketamine,substance_alias,,,substance_ketamine
+slang_keo,kẹo,MDMA/thuốc lắc/ma túy tổng hợp,substance_alias,,,substance_mdma
+slang_da,đá,methamphetamine,substance_alias,,,substance_methamphetamine
+slang_co,cỏ,cần sa,substance_alias,,,
+slang_hang_trang,hàng trắng,heroin/ma túy dạng bột trắng,substance_alias,,,
+slang_3que,3 que,"từ lóng chính trị, cần kiểm tra hành vi cụ thể",political_slang,signal_national_security,concept_phan_boi_to_quoc,
+slang_phan_dong,phản động,"từ mô tả mơ hồ, cần kiểm tra hành vi cụ thể",political_slang,signal_national_security,concept_phan_boi_to_quoc,
+slang_go_nhom_ia,gỗ nhóm IA,lâm sản nhóm IA,forest_slang,signal_forest_product,concept_khai_thac_lam_san_trai_phep,
+slang_go_nhom_iia,gỗ nhóm IIA,lâm sản nhóm IIA,forest_slang,signal_forest_product,concept_khai_thac_lam_san_trai_phep,

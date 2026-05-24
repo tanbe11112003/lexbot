@@ -1,0 +1,14 @@
+id,text,signal_id,normalized_to
+alias_bay_phong,bay phòng,signal_drug_use,sử dụng trái phép chất ma túy
+alias_di_bay,đi bay,signal_drug_use,sử dụng trái phép chất ma túy
+alias_to_chuc_bay,tổ chức bay,signal_drug_organization,tổ chức sử dụng trái phép chất ma túy
+alias_ru_re_dung_ma_tuy,rủ rê dùng ma túy,signal_drug_organization,tổ chức/lôi kéo sử dụng trái phép chất ma túy
+alias_dat_phong,đặt phòng,signal_drug_organization,"chuẩn bị địa điểm, cần kiểm tra mục đích và nhận thức"
+alias_giup_suc,giúp sức,signal_accomplice,người giúp sức trong đồng phạm
+alias_bao_che,bao che,signal_concealment,che giấu tội phạm
+alias_khong_bao,không báo công an,signal_non_denunciation,không tố giác tội phạm
+alias_say_xin,say xỉn,signal_intoxication,phạm tội do dùng rượu bia hoặc chất kích thích
+alias_chong_pha,chống phá,signal_national_security,dấu hiệu an ninh quốc gia cần kiểm tra
+alias_3que,3 que,signal_national_security,"từ lóng chính trị, không tự động kết luận tội"
+alias_khai_thac_go,khai thác gỗ,signal_forest_product,khai thác lâm sản trái pháp luật
+alias_van_chuyen_go,vận chuyển gỗ,signal_forest_product,vận chuyển lâm sản trái pháp luật

@@ -1,0 +1,23 @@
+id,article_id,article_code,point,text,normalized_text
+mitigating_51_a,article_51,51,a,Người phạm tội đã ngăn chặn hoặc làm giảm bớt tác hại của tội phạm;,nguoi pham toi da ngan chan hoac lam giam bot tac hai cua toi pham
+mitigating_51_b,article_51,51,b,"Người phạm tội tự nguyện sửa chữa, bồi thường thiệt hại hoặc khắc phục hậu quả;",nguoi pham toi tu nguyen sua chua boi thuong thiet hai hoac khac phuc hau qua
+mitigating_51_c,article_51,51,c,Phạm tội trong trường hợp vượt quá giới hạn phòng vệ chính đáng;,pham toi trong truong hop vuot qua gioi han phong ve chinh dang
+mitigating_51_d,article_51,51,d,Phạm tội trong trường hợp vượt quá yêu cầu của tình thế cấp thiết;,pham toi trong truong hop vuot qua yeu cau cua tinh the cap thiet
+mitigating_51_đ,article_51,51,đ,Phạm tội trong trường hợp vượt quá mức cần thiết khi bắt giữ người phạm tội;,pham toi trong truong hop vuot qua muc can thiet khi bat giu nguoi pham toi
+mitigating_51_e,article_51,51,e,Phạm tội trong trường hợp bị kích động về tinh thần do hành vi trái pháp luật của nạn nhân gây ra;,pham toi trong truong hop bi kich dong ve tinh than do hanh vi trai phap luat cua nan nhan gay ra
+mitigating_51_g,article_51,51,g,Phạm tội vì hoàn cảnh đặc biệt khó khăn mà không phải do mình tự gây ra;,pham toi vi hoan canh dac biet kho khan ma khong phai do minh tu gay ra
+mitigating_51_h,article_51,51,h,Phạm tội nhưng chưa gây thiệt hại hoặc gây thiệt hại không lớn;,pham toi nhung chua gay thiet hai hoac gay thiet hai khong lon
+mitigating_51_i,article_51,51,i,Phạm tội lần đầu và thuộc trường hợp ít nghiêm trọng;,pham toi lan dau va thuoc truong hop it nghiem trong
+mitigating_51_k,article_51,51,k,Phạm tội vì bị người khác đe dọa hoặc cưỡng bức;,pham toi vi bi nguoi khac de doa hoac cuong buc
+mitigating_51_l,article_51,51,l,Phạm tội trong trường hợp bị hạn chế khả năng nhận thức mà không phải do lỗi của mình gây ra;,pham toi trong truong hop bi han che kha nang nhan thuc ma khong phai do loi cua minh gay ra
+mitigating_51_m,article_51,51,m,Phạm tội do lạc hậu;,pham toi do lac hau
+mitigating_51_n,article_51,51,n,Người phạm tội là phụ nữ có thai;,nguoi pham toi la phu nu co thai
+mitigating_51_o,article_51,51,o,Người phạm tội là người đủ 70 tuổi trở lên;,nguoi pham toi la nguoi du 70 tuoi tro len
+mitigating_51_p,article_51,51,p,Người phạm tội là người khuyết tật nặng hoặc khuyết tật đặc biệt nặng;,nguoi pham toi la nguoi khuyet tat nang hoac khuyet tat dac biet nang
+mitigating_51_q,article_51,51,q,Người phạm tội là người có bệnh bị hạn chế khả năng nhận thức hoặc khả năng điều khiển hành vi của mình;,nguoi pham toi la nguoi co benh bi han che kha nang nhan thuc hoac kha nang dieu khien hanh vi cua minh
+mitigating_51_r,article_51,51,r,Người phạm tội tự thú;,nguoi pham toi tu thu
+mitigating_51_s,article_51,51,s,"Người phạm tội thành khẩn khai báo, ăn năn hối cải;",nguoi pham toi thanh khan khai bao an nan hoi cai
+mitigating_51_t,article_51,51,t,Người phạm tội tích cực hợp tác với cơ quan có trách nhiệm trong việc phát hiện tội phạm hoặc trong quá trình giải quyết vụ án;,nguoi pham toi tich cuc hop tac voi co quan co trach nhiem trong viec phat hien toi pham hoac trong qua trinh giai quyet vu an
+mitigating_51_u,article_51,51,u,Người phạm tội đã lập công chuộc tội;,nguoi pham toi da lap cong chuoc toi
+mitigating_51_v,article_51,51,v,"Người phạm tội là người có thành tích xuất sắc trong sản xuất, chiến đấu, học tập hoặc công tác;",nguoi pham toi la nguoi co thanh tich xuat sac trong san xuat chien dau hoc tap hoac cong tac
+mitigating_51_x,article_51,51,x,"Người phạm tội là người có công với cách mạng hoặc là cha, mẹ, vợ, chồng, con của liệt sĩ.",nguoi pham toi la nguoi co cong voi cach mang hoac la cha me vo chong con cua liet si
