@@ -114,6 +114,26 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+## Deploy backend bằng Railway/Railpack
+
+Repository đã có cấu hình ở root để Railpack nhận diện backend Python/FastAPI:
+
+```text
+requirements.txt  -> trỏ tới backend/requirements.txt
+railpack.json     -> dùng provider python và chạy bash start.sh
+start.sh          -> cd backend rồi chạy uvicorn theo PORT của Railway
+```
+
+Khi deploy, cấu hình các biến môi trường tối thiểu:
+
+```text
+NEO4J_URI=<bolt-uri-cua-neo4j>
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=<mat-khau>
+NEO4J_DATABASE=neo4j
+OPENAI_API_KEY=<neu-dung-LLM>
+```
+
 Test:
 
 ```bash
