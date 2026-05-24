@@ -62,6 +62,21 @@ def analyze_scenario(req: AnalyzeScenarioRequest) -> ScenarioAnalysisResponse:
     for code in support_codes:
         if code not in seen:
             candidates_raw.append({"article_code": code, "title": f"Điều {code}", "score": 0.01, "source": "supporting_rule_inference", "matched_terms": [f"Điều {code}"]})
+            seen.add(code)
+
+    action_norms = {a.lower() for a in facts.actions}
+    required_crime_codes: list[str] = []
+    if facts.substances:
+        if "tổ chức sử dụng" in action_norms:
+            required_crime_codes.append("255")
+        if "sử dụng" in action_norms:
+            required_crime_codes.append("256a")
+        if "mua" in action_norms or "mua bán" in action_norms:
+            required_crime_codes.extend(["251", "249"])
+    for code in required_crime_codes:
+        if code not in seen:
+            candidates_raw.append({"article_code": code, "title": f"Điều {code}", "score": 0.05, "source": "required_drug_action", "matched_terms": [f"Điều {code}"]})
+            seen.add(code)
 
     contexts = fetch_contexts([str(c.get("article_code")) for c in candidates_raw if c.get("article_code")])
     missing = detect_missing_facts(facts, req.scenario)
@@ -69,11 +84,17 @@ def analyze_scenario(req: AnalyzeScenarioRequest) -> ScenarioAnalysisResponse:
     reasoning_rank = {item.article_code: idx for idx, item in enumerate(reasoning)}
     reasoning_score = {item.article_code: item.confidence for item in reasoning}
     contexts = sorted(contexts, key=lambda ctx: reasoning_rank.get(str((ctx.get("article") or {}).get("article_code")), 999))
+    context_titles = {
+        str((ctx.get("article") or {}).get("article_code")): str((ctx.get("article") or {}).get("title") or "")
+        for ctx in contexts
+    }
     for candidate in candidates_raw:
         code = str(candidate.get("article_code"))
         if code in reasoning_score:
             candidate["score"] = max(float(candidate.get("score") or 0.0), float(reasoning_score[code]))
             candidate["reason"] = "ranked_by_legal_reasoning"
+        if context_titles.get(code):
+            candidate["title"] = context_titles[code]
     candidates_raw = sorted(candidates_raw, key=lambda c: reasoning_rank.get(str(c.get("article_code")), 999))
     answer = generate_answer(req.scenario, facts, contexts, reasoning, missing)
     confidence = max([r.confidence for r in reasoning], default=0.3)

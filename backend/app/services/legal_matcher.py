@@ -97,9 +97,13 @@ def score_context(ctx: dict, facts: ExtractedFacts, normalized: list[dict], miss
     if ("mua" in action_norms or "mua ban" in action_norms) and code == "251":
         score += 0.30
     if code == "248" and "san xuat" not in action_norms:
-        score -= 0.45
+        score -= 0.90
+    if code == "252" and "chiem doat" not in action_norms:
+        score -= 0.70
+    if code == "250" and "van chuyen" not in action_norms:
+        score -= 0.35
     fact_object_text = normalize_text(" ".join(facts.objects))
     if code == "254" and not any(x in fact_object_text for x in ["phuong tien", "dung cu"]):
-        score -= 0.20
+        score -= 0.95
     score -= 0.15 * len(missing)
     return clamp(score), matched
