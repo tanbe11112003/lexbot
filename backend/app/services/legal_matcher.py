@@ -14,8 +14,20 @@ def detect_missing_facts(facts: ExtractedFacts, scenario: str) -> list[str]:
             missing.append("Ma túy: thiếu kết luận giám định về loại chất.")
         if not facts.quantities:
             missing.append("Ma túy: thiếu khối lượng/hàm lượng hoặc số lượng để xác định khoản.")
-        missing.append("Ma túy: cần làm rõ ai cung cấp, ai tổ chức, ai sử dụng, mục đích và hưởng lợi.")
-    if "go" in norm or "lam san" in norm or "rung" in norm:
+        role_gaps: list[str] = []
+        if not any(x in norm for x in ["tu doi tuong ten", "cung cap", "nguoi ban"]):
+            role_gaps.append("ai cung cấp")
+        if "to chuc su dung" not in [normalize_text(a) for a in facts.actions]:
+            role_gaps.append("ai tổ chức")
+        if not any(x in norm for x in ["su dung", "duong tinh"]):
+            role_gaps.append("ai sử dụng")
+        if not facts.intent and "de" not in norm:
+            role_gaps.append("mục đích")
+        role_gaps.append("hưởng lợi")
+        if role_gaps:
+            missing.append("Ma túy: cần làm rõ " + ", ".join(role_gaps) + ".")
+    tokens = set(norm.split())
+    if "go" in tokens or "lam san" in norm or "rung" in tokens:
         if not any(q.unit in {"m3", "m³", "mét khối"} for q in facts.quantities):
             missing.append("Lâm sản/gỗ: thiếu khối lượng m3.")
         missing.append("Lâm sản/gỗ: thiếu loại gỗ/nhóm IA-IIA, nguồn gốc và hành vi chính xác.")
@@ -69,5 +81,25 @@ def score_context(ctx: dict, facts: ExtractedFacts, normalized: list[dict], miss
         score += 0.10
     if ctx.get("penalty_frames"):
         score += 0.05
+    article = ctx.get("article") or {}
+    domain_text = normalize_text(" ".join(str(article.get(k) or "") for k in ["title", "chapter_name", "full_text"]))
+    if facts.substances:
+        if "ma tuy" in domain_text or any(normalize_text(s.name) in haystack for s in facts.substances):
+            score += 0.25
+        else:
+            score -= 0.60
+    code = str(article.get("article_code") or "")
+    action_norms = {normalize_text(a) for a in facts.actions}
+    if "to chuc su dung" in action_norms and code == "255":
+        score += 0.35
+    if "su dung" in action_norms and code == "256a":
+        score += 0.25
+    if ("mua" in action_norms or "mua ban" in action_norms) and code == "251":
+        score += 0.30
+    if code == "248" and "san xuat" not in action_norms:
+        score -= 0.45
+    fact_object_text = normalize_text(" ".join(facts.objects))
+    if code == "254" and not any(x in fact_object_text for x in ["phuong tien", "dung cu"]):
+        score -= 0.20
     score -= 0.15 * len(missing)
     return clamp(score), matched

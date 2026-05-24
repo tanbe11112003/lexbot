@@ -43,8 +43,11 @@ def analyze_scenario(req: AnalyzeScenarioRequest) -> ScenarioAnalysisResponse:
 
     # Ensure supporting rules when facts suggest them, without hard-coding test results as final answers.
     support_codes: list[str] = []
-    if facts.age_info:
+    ages = [actor.age for actor in facts.actors if actor.age is not None]
+    if any(age < 18 for age in ages):
         support_codes.append("12")
+    if any(age >= 70 for age in ages):
+        support_codes.append("51")
     if any(a in facts.actions for a in ["giúp sức", "xúi giục", "chủ mưu", "cầm đầu"]) or len(facts.actors) >= 2:
         support_codes.append("17")
     if any(a in facts.actions for a in ["chuẩn bị"]):
@@ -63,6 +66,15 @@ def analyze_scenario(req: AnalyzeScenarioRequest) -> ScenarioAnalysisResponse:
     contexts = fetch_contexts([str(c.get("article_code")) for c in candidates_raw if c.get("article_code")])
     missing = detect_missing_facts(facts, req.scenario)
     reasoning = reason_over_contexts(contexts, facts, normalized, missing)
+    reasoning_rank = {item.article_code: idx for idx, item in enumerate(reasoning)}
+    reasoning_score = {item.article_code: item.confidence for item in reasoning}
+    contexts = sorted(contexts, key=lambda ctx: reasoning_rank.get(str((ctx.get("article") or {}).get("article_code")), 999))
+    for candidate in candidates_raw:
+        code = str(candidate.get("article_code"))
+        if code in reasoning_score:
+            candidate["score"] = max(float(candidate.get("score") or 0.0), float(reasoning_score[code]))
+            candidate["reason"] = "ranked_by_legal_reasoning"
+    candidates_raw = sorted(candidates_raw, key=lambda c: reasoning_rank.get(str(c.get("article_code")), 999))
     answer = generate_answer(req.scenario, facts, contexts, reasoning, missing)
     confidence = max([r.confidence for r in reasoning], default=0.3)
     answer, confidence, warnings = validate_answer(answer, contexts, missing, reasoning, confidence)

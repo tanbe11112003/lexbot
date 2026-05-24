@@ -28,6 +28,8 @@ def search(req: SearchRequest) -> SearchResponse:
         facts = extract_facts(req.query)
         missing = detect_missing_facts(facts, req.query)
         reasoning = reason_over_contexts(contexts, facts, [], missing)
+        reasoning_rank = {item.article_code: idx for idx, item in enumerate(reasoning)}
+        contexts = sorted(contexts, key=lambda ctx: reasoning_rank.get(str((ctx.get("article") or {}).get("article_code")), 999))
         answer = generate_answer(req.query, facts, contexts, reasoning, missing)
         answer, _, warnings = validate_answer(answer, contexts, missing, reasoning, 0.5)
         debug = {"mode": "fulltext", "warnings": warnings} if req.include_debug else None
@@ -48,6 +50,15 @@ def search(req: SearchRequest) -> SearchResponse:
     contexts = fetch_contexts([str(c.get("article_code")) for c in candidates if c.get("article_code")])
     missing = detect_missing_facts(facts, req.query)
     reasoning = reason_over_contexts(contexts, facts, normalized, missing)
+    reasoning_rank = {item.article_code: idx for idx, item in enumerate(reasoning)}
+    reasoning_score = {item.article_code: item.confidence for item in reasoning}
+    contexts = sorted(contexts, key=lambda ctx: reasoning_rank.get(str((ctx.get("article") or {}).get("article_code")), 999))
+    for candidate in candidates:
+        code = str(candidate.get("article_code"))
+        if code in reasoning_score:
+            candidate["score"] = max(float(candidate.get("score") or 0.0), float(reasoning_score[code]))
+            candidate["reason"] = "ranked_by_legal_reasoning"
+    candidates = sorted(candidates, key=lambda c: reasoning_rank.get(str(c.get("article_code")), 999))
     answer = generate_answer(req.query, facts, contexts, reasoning, missing)
     answer, _, warnings = validate_answer(answer, contexts, missing, reasoning, 0.5)
     if req.include_debug:

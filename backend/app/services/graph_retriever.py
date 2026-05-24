@@ -87,3 +87,20 @@ def search_related_from_signals(normalized: list[dict], limit: int = 10) -> list
         """,
         {"codes": article_codes, "limit": limit},
     )
+
+
+def search_articles_by_title_terms(terms: list[str], limit: int = 10) -> list[dict]:
+    if not terms:
+        return []
+    return neo4j_db.try_query(
+        """
+        MATCH (a:Article)
+        WHERE any(term IN $terms WHERE toLower(a.title) CONTAINS toLower(term))
+        OPTIONAL MATCH (a)-[:DEFINES_CRIME]->(c:Crime)
+        RETURN a.article_code AS article_code, a.title AS title, c.name AS crime_name,
+               1.6 AS score, "legal_action_title" AS source, $terms AS matched_terms
+        ORDER BY a.article_number
+        LIMIT $limit
+        """,
+        {"terms": terms, "limit": limit},
+    )

@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 ACTION_TERMS = [
     "tàng trữ", "vận chuyển", "mua bán", "mua", "cung cấp", "sản xuất", "chiếm đoạt", "sử dụng", "tổ chức sử dụng",
     "chứa chấp", "lôi kéo", "cưỡng bức", "che giấu", "không tố giác", "giúp sức", "xúi giục",
-    "chủ mưu", "cầm đầu", "rủ", "chuẩn bị", "chưa đạt", "khai thác", "tự thú",
+    "chủ mưu", "cầm đầu", "rủ", "nhờ", "đặt phòng", "chuẩn bị", "chưa đạt", "khai thác", "tự thú",
 ]
 SUBSTANCE_ALIASES = {
     "ketamin": "ketamine", "ketamine": "ketamine", "kẹo": "MDMA", "thuốc lắc": "MDMA",
@@ -31,22 +31,115 @@ AGGRAVATING_TERMS = ["có tổ chức", "tái phạm", "tái phạm nguy hiểm"
 
 def _parse_float(raw: str) -> float | None:
     try:
-        return float(raw.replace(".", "").replace(",", "."))
+        raw = raw.strip()
+        if "," in raw and "." in raw:
+            return float(raw.replace(".", "").replace(",", "."))
+        if "," in raw:
+            return float(raw.replace(",", "."))
+        if "." in raw:
+            left, right = raw.rsplit(".", 1)
+            if len(right) <= 2:
+                return float(raw)
+            return float(raw.replace(".", ""))
+        return float(raw)
     except ValueError:
         return None
+
+
+_ACTOR_STOPWORDS = {
+    "Bộ", "Điều", "Khoản", "Tội", "Khi", "Nếu", "Tình", "Người", "Các", "Theo",
+    "Trong", "Hiện", "Căn", "Tuy", "Do", "Vì", "Với", "Ca", "Nam", "Nữ",
+    "Tương", "Những", "Long", "Sơn", "Ngọc", "Minh", "Nhật", "Tết",
+}
+_TITLE_PREFIX_RE = re.compile(r"^(?:ca\s+sĩ|nam\s+ca\s+sĩ|nữ\s+ca\s+sĩ|ông|bà|anh|chị|bị\s+can|bị\s+cáo)\s+", re.I)
+
+
+def _clean_actor_name(name: str) -> str:
+    name = re.sub(r"\s+", " ", name or "").strip(" ,;:.")
+    name = _TITLE_PREFIX_RE.sub("", name).strip()
+    return name
+
+
+def _is_likely_actor_name(name: str) -> bool:
+    words = name.split()
+    return 1 <= len(words) <= 4 and all(word and word[0].isupper() for word in words)
+
+
+def _add_actor(actors: list[Actor], seen: set[str], name: str, age: int | None = None) -> None:
+    name = _clean_actor_name(name)
+    if not name or name in _ACTOR_STOPWORDS or name.upper() in {"BLHS", "MDMA"}:
+        return
+    if not _is_likely_actor_name(name):
+        return
+    key = name.lower()
+    if key in seen:
+        for actor in actors:
+            if actor.name.lower() == key and age is not None:
+                actor.age = age
+        return
+    seen.add(key)
+    actors.append(Actor(name=name, age=age))
 
 
 def _extract_actors(text: str) -> list[Actor]:
     actors: list[Actor] = []
     seen: set[str] = set()
+
+    age_name_pattern = re.compile(
+        r"((?:(?:ca\s+sĩ|nam\s+ca\s+sĩ|nữ\s+ca\s+sĩ|ông|bà|anh|chị)\s+)?"
+        r"[A-ZĐ][a-zA-ZÀ-ỹ]{1,24}(?:\s+[A-ZĐ][a-zA-ZÀ-ỹ]{1,24}){0,3})\s*,\s*(\d{1,3})\s*tuổi",
+        re.I,
+    )
+    for match in age_name_pattern.finditer(text):
+        _add_actor(actors, seen, match.group(1), int(match.group(2)))
+
     for name in re.findall(r"\b([A-ZĐ][A-ZĐ0-9]{0,2})\b", text):
-        if name not in seen and name not in {"BLHS", "MDMA"}:
-            seen.add(name)
-            actors.append(Actor(name=name))
+        _add_actor(actors, seen, name)
+    for name in re.findall(r"\b([A-ZĐ][a-zA-ZÀ-ỹ]{1,24})\b", text):
+        if name in _ACTOR_STOPWORDS and name != "Long":
+            continue
+        _add_actor(actors, seen, name)
     for m in re.finditer(r"([A-ZĐ][A-ZĐ0-9]{0,2})\s*(?:đủ\s*)?(\d{1,2})\s*tuổi", text):
         for actor in actors:
             if actor.name == m.group(1):
                 actor.age = int(m.group(2))
+    lowered = text.lower()
+    for actor in actors:
+        name = actor.name
+        lname = name.lower()
+        if re.search(rf"\b{re.escape(lname)}\s+nhờ\b", lowered):
+            actor.role = "người nhờ/khởi xướng"
+        elif re.search(rf"\bnhờ\s+{re.escape(lname)}\b", lowered):
+            actor.role = "người được nhờ"
+        elif re.search(rf"\bqua\s+{re.escape(lname)}\b", lowered):
+            actor.role = "trung gian/liên hệ"
+        elif re.search(rf"\btên\s+{re.escape(lname)}\b", lowered):
+            actor.role = "người bán/cung cấp bị nêu tên"
+        elif re.search(rf"\b{re.escape(lname)}\b[^.]{0,160}\btổ chức\b", lowered):
+            actor.role = "người bị cáo buộc tổ chức"
+        elif re.search(rf"\b{re.escape(lname)}\b[^.]{0,120}\b(chuyển tiền|nhờ người mua|mua hàng)\b", lowered):
+            actor.role = "người bị cáo buộc mua/nhờ mua"
+        elif re.search(rf"\b{re.escape(lname)}\b[^.]{0,160}\bsử dụng\b", lowered):
+            actor.role = "người sử dụng"
+    for actor in actors:
+        lname = actor.name.lower()
+        window_match = re.search(rf"\b{re.escape(lname)}\b(?P<tail>[^.]{{0,180}})", lowered)
+        tail = window_match.group("tail") if window_match else ""
+        if "thừa nhận" in tail and "sử dụng" in tail:
+            actor.role = "người sử dụng"
+            continue
+        if actor.role:
+            continue
+        later_self_use = re.search(rf"\b{re.escape(lname)}\b[^.]{{0,180}}thừa nhận[^.]{{0,80}}sử dụng", lowered)
+        if later_self_use:
+            actor.role = "người sử dụng"
+            continue
+        elif "tổ chức" in tail:
+            actor.role = "người bị cáo buộc tổ chức"
+        elif "chuyển tiền" in tail or "nhờ người mua" in tail or "mua hàng" in tail:
+            actor.role = "người bị cáo buộc mua/nhờ mua"
+        elif "sử dụng" in tail:
+            actor.role = "người sử dụng"
     return actors
 
 
@@ -77,15 +170,20 @@ def _regex_extract(text: str) -> ExtractedFacts:
     facts.actors = _extract_actors(text)
     facts.quantities = _extract_quantities(text)
     facts.actions = [term for term in ACTION_TERMS if normalize_text(term) in norm]
+    if "dat phong" in norm and "su dung" in norm and ("ma tuy" in norm or "ketamin" in norm or "ketamine" in norm):
+        facts.actions.append("tổ chức sử dụng")
     facts.consequences = [term for term in CONSEQUENCE_TERMS if normalize_text(term) in norm]
     facts.location = [term for term in LOCATION_TERMS if normalize_text(term) in norm]
     facts.mitigating_signals = [term for term in MITIGATING_TERMS if normalize_text(term) in norm]
     facts.aggravating_signals = [term for term in AGGRAVATING_TERMS if normalize_text(term) in norm]
     facts.article_refs = dedupe_keep_order(re.findall(r"[Đđ]iều\s+(\d+[a-zA-Z]?)", text))
     facts.age_info = dedupe_keep_order([m.group(0) for m in re.finditer(r"(?:\d{1,2}\s*tuổi|dưới\s*\d{1,2}|từ\s*đủ\s*\d{1,2}|đủ\s*70\s*tuổi)", text, flags=re.I)])
-    facts.intent = [term for term in ["mục đích", "hưởng lợi", "cho bạn", "để bán", "để sử dụng"] if normalize_text(term) in norm]
+    facts.intent = [term for term in ["mục đích", "hưởng lợi", "cho bạn", "để bán", "để sử dụng", "để long sử dụng"] if normalize_text(term) in norm]
     facts.mental_state = [term for term in ["cố ý", "vô ý", "biết", "không biết"] if normalize_text(term) in norm]
     facts.evidence = [term for term in ["giám định", "kết luận giám định", "dương tính", "camera", "lời khai"] if normalize_text(term) in norm]
+    if "khong con tang vat" in norm:
+        facts.evidence.append("không còn tang vật")
+        facts.unknowns.append("Không còn tang vật: cần hồ sơ xét nghiệm/giám định và chứng cứ khác để chứng minh chất ma túy, nguồn cung, hành vi.")
     for alias, name in SUBSTANCE_ALIASES.items():
         alias_norm = normalize_text(alias)
         if len(alias_norm) <= 2:
@@ -96,11 +194,17 @@ def _regex_extract(text: str) -> ExtractedFacts:
             quantity = facts.quantities[0] if facts.quantities else None
             facts.substances.append(SubstanceFact(name=name, alias=alias, quantity=quantity, confidence=0.9))
     facts.objects = [s.name for s in facts.substances]
-    if any(x in norm for x in ["go", "lam san", "rung"]):
+    tokens = set(norm.split())
+    if "lam san" in norm or "rung" in tokens or "go" in tokens:
         facts.objects.append("gỗ/lâm sản")
         facts.crime_hints.append("tội vi phạm quy định về khai thác, bảo vệ rừng và lâm sản")
     if facts.substances:
         facts.crime_hints.append("nhóm tội phạm về ma túy")
+    facts.actions = dedupe_keep_order(facts.actions)
+    facts.objects = dedupe_keep_order(facts.objects)
+    facts.evidence = dedupe_keep_order(facts.evidence)
+    facts.intent = dedupe_keep_order(facts.intent)
+    facts.unknowns = dedupe_keep_order(facts.unknowns)
     return facts
 
 
