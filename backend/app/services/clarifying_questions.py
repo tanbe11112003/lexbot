@@ -15,8 +15,29 @@ def _is_drug_related(facts: ExtractedFacts, scenario: str, missing: list[str]) -
     )
 
 
+def user_declines_or_lacks_more_info(scenario: str) -> bool:
+    norm = normalize_text(scenario)
+    return any(
+        term in norm
+        for term in [
+            "toi khong biet",
+            "minh khong biet",
+            "khong biet them",
+            "khong ro them",
+            "khong co thong tin them",
+            "khong nam duoc",
+            "khong biet tang vat",
+            "khong biet dinh luong",
+            "khong ro dinh luong",
+            "khong ro khoi luong",
+        ]
+    )
+
+
 def build_clarifying_questions(facts: ExtractedFacts, scenario: str, missing: list[str]) -> list[str]:
     if not missing:
+        return []
+    if user_declines_or_lacks_more_info(scenario):
         return []
 
     questions: list[str] = []
@@ -24,15 +45,16 @@ def build_clarifying_questions(facts: ExtractedFacts, scenario: str, missing: li
     action_norms = {normalize_text(action) for action in facts.actions}
 
     if _is_drug_related(facts, scenario, missing):
-        no_exhibit_known = any("không còn tang vật" in item for item in facts.evidence + facts.unknowns) or any(
+        exhibit_statuses = {exhibit.status for exhibit in facts.exhibits}
+        no_exhibit_known = bool(exhibit_statuses & {"consumed", "not_seized"}) or any("không còn tang vật" in item for item in facts.evidence + facts.unknowns) or any(
             term in norm for term in ["khong con tang vat", "tieu thu het", "su dung het", "khong thu giu duoc"]
         )
-        if not no_exhibit_known:
+        if not facts.exhibits and not no_exhibit_known:
             questions.append(
                 "Tình trạng tang vật là trường hợp nào: đã tiêu thụ/sử dụng hết nên không còn hiện vật khi bị bắt, "
                 "hay còn tang vật bị thu giữ?"
             )
-        if not facts.quantities:
+        if not facts.quantities and not no_exhibit_known:
             questions.append(
                 "Nếu còn tang vật bị thu giữ, khối lượng/hàm lượng cụ thể là bao nhiêu gam; hoặc số lượng bao nhiêu viên/gói?"
             )

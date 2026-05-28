@@ -8,6 +8,6 @@ Tình huống: {scenario}
 
 Trả JSON với các khóa:
 actors, actions, objects, substances, quantities, consequences, age_info, intent,
-mental_state, evidence, location, article_refs, crime_hints, mitigating_signals,
+mental_state, evidence, location, exhibits, article_refs, crime_hints, mitigating_signals,
 aggravating_signals, unknowns.
 """

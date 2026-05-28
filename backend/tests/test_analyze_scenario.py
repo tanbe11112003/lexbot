@@ -1,4 +1,5 @@
 from app.services.fact_extractor import extract_facts
+from app.services.answer_generator import generate_answer
 from app.services.clarifying_questions import build_clarifying_questions
 from app.services.legal_matcher import detect_missing_facts
 
@@ -36,3 +37,24 @@ def test_drug_clarifying_questions_for_consumed_exhibit():
 
     assert any("xét nghiệm dương tính" in question for question in questions)
     assert not any("trường hợp nào" in question for question in questions)
+
+
+def test_fact_extractor_detects_seized_exhibit():
+    facts = extract_facts("Công an phát hiện tang vật 3 gói ketamin trong phòng karaoke")
+
+    assert facts.exhibits
+    assert facts.exhibits[0].status == "seized"
+    assert facts.exhibits[0].quantity is not None
+
+
+def test_unknown_extra_data_stops_reasking_and_gives_limited_conclusion():
+    scenario = "A sử dụng ma túy trong phòng karaoke. Tôi không biết tang vật và không biết định lượng."
+    facts = extract_facts(scenario)
+    missing = detect_missing_facts(facts, scenario)
+    questions = build_clarifying_questions(facts, scenario, missing)
+    answer = generate_answer(scenario, facts, [], [], missing, clarifying_questions=questions)
+    lowered_answer = answer.lower()
+
+    assert questions == []
+    assert "chưa có thêm dữ liệu" in answer or "chưa có thêm thông tin" in answer
+    assert "có dấu hiệu" in lowered_answer or "có thể xem xét" in lowered_answer

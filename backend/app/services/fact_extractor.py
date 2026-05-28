@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Any
 
 from app.core.config import settings
-from app.models.facts import Actor, ExtractedFacts, Quantity, SubstanceFact
+from app.models.facts import Actor, ExhibitFact, ExtractedFacts, Quantity, SubstanceFact
 from app.prompts.fact_extraction_prompt import FACT_EXTRACTION_SYSTEM, FACT_EXTRACTION_USER
 from app.utils.text import dedupe_keep_order, normalize_text
 
@@ -27,6 +27,12 @@ CONSEQUENCE_TERMS = ["chết người", "tử vong", "thương tích", "thiệt 
 LOCATION_TERMS = ["karaoke", "quán bar", "nhà nghỉ", "phòng", "khách sạn"]
 MITIGATING_TERMS = ["tự thú", "thành khẩn", "ăn năn", "đủ 70 tuổi", "người đủ 70 tuổi"]
 AGGRAVATING_TERMS = ["có tổ chức", "tái phạm", "tái phạm nguy hiểm", "côn đồ", "lợi dụng chức vụ"]
+EXHIBIT_PATTERNS = [
+    ("consumed", r"(?:không\s+còn\s+tang\s+vật|tang\s+vật\s+đã\s+(?:bị\s+)?(?:tiêu\s+thụ|sử\s+dụng)\s+hết|đã\s+(?:tiêu\s+thụ|sử\s+dụng)\s+hết)"),
+    ("not_seized", r"(?:không\s+thu\s+giữ\s+được|không\s+thu\s+được|không\s+phát\s+hiện\s+tang\s+vật)"),
+    ("seized", r"(?:thu\s+giữ|thu\s+được|phát\s+hiện|bắt\s+quả\s+tang)[^.]{0,80}(?:tang\s+vật|ma\s+túy|ketamin|ketamine|thuốc\s+lắc|mdma|heroin|cần\s+sa|gói|viên|gam|g)"),
+    ("mentioned", r"(?:tang\s+vật|vật\s+chứng)"),
+]
 
 
 def _parse_float(raw: str) -> float | None:
@@ -163,12 +169,28 @@ def _extract_quantities(text: str) -> list[Quantity]:
     return quantities
 
 
+def _extract_exhibits(text: str, quantities: list[Quantity]) -> list[ExhibitFact]:
+    exhibits: list[ExhibitFact] = []
+    seen: set[tuple[str, str]] = set()
+    for status, pattern in EXHIBIT_PATTERNS:
+        for match in re.finditer(pattern, text, flags=re.I):
+            source = re.sub(r"\s+", " ", match.group(0)).strip()
+            key = (status, source.lower())
+            if key in seen:
+                continue
+            seen.add(key)
+            quantity = quantities[0] if quantities and status in {"seized", "mentioned"} else None
+            exhibits.append(ExhibitFact(status=status, description=source, quantity=quantity, source_text=source))
+    return exhibits
+
+
 def _regex_extract(text: str) -> ExtractedFacts:
     norm = normalize_text(text)
     lowered = (text or "").lower()
     facts = ExtractedFacts()
     facts.actors = _extract_actors(text)
     facts.quantities = _extract_quantities(text)
+    facts.exhibits = _extract_exhibits(text, facts.quantities)
     facts.actions = [term for term in ACTION_TERMS if normalize_text(term) in norm]
     if "dat phong" in norm and "su dung" in norm and ("ma tuy" in norm or "ketamin" in norm or "ketamine" in norm):
         facts.actions.append("tổ chức sử dụng")
@@ -181,9 +203,12 @@ def _regex_extract(text: str) -> ExtractedFacts:
     facts.intent = [term for term in ["mục đích", "hưởng lợi", "cho bạn", "để bán", "để sử dụng", "để long sử dụng"] if normalize_text(term) in norm]
     facts.mental_state = [term for term in ["cố ý", "vô ý", "biết", "không biết"] if normalize_text(term) in norm]
     facts.evidence = [term for term in ["giám định", "kết luận giám định", "dương tính", "camera", "lời khai"] if normalize_text(term) in norm]
-    if "khong con tang vat" in norm:
+    if "khong con tang vat" in norm or any(exhibit.status == "consumed" for exhibit in facts.exhibits):
         facts.evidence.append("không còn tang vật")
         facts.unknowns.append("Không còn tang vật: cần hồ sơ xét nghiệm/giám định và chứng cứ khác để chứng minh chất ma túy, nguồn cung, hành vi.")
+    if any(exhibit.status == "not_seized" for exhibit in facts.exhibits):
+        facts.evidence.append("không thu giữ được tang vật")
+        facts.unknowns.append("Không thu giữ được tang vật: cần chứng cứ thay thế như xét nghiệm, lời khai, camera, tin nhắn hoặc chuyển khoản.")
     for alias, name in SUBSTANCE_ALIASES.items():
         alias_norm = normalize_text(alias)
         if len(alias_norm) <= 2:

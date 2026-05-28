@@ -10,10 +10,15 @@ def detect_missing_facts(facts: ExtractedFacts, scenario: str) -> list[str]:
     norm = normalize_text(scenario)
     missing: list[str] = []
     if facts.substances or "ma tuy" in norm:
+        exhibit_statuses = {exhibit.status for exhibit in facts.exhibits}
+        if not exhibit_statuses:
+            missing.append("Tang vật: chưa rõ còn bị thu giữ, đã bị tiêu thụ/sử dụng hết, hay không thu giữ được.")
         if not any("giám định" in e or "dương tính" in e for e in facts.evidence):
             missing.append("Ma túy: thiếu kết luận giám định về loại chất.")
-        if not facts.quantities:
+        if not facts.quantities and not (exhibit_statuses & {"consumed", "not_seized"}):
             missing.append("Ma túy: thiếu khối lượng/hàm lượng hoặc số lượng để xác định khoản.")
+        elif not facts.quantities:
+            missing.append("Ma túy: không có định lượng do không còn/không thu giữ được tang vật; cần chứng cứ thay thế để đánh giá ở mức có dấu hiệu.")
         role_gaps: list[str] = []
         if not any(x in norm for x in ["tu doi tuong ten", "cung cap", "nguoi ban"]):
             role_gaps.append("ai cung cấp")

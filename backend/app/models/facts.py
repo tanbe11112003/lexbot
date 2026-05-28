@@ -24,11 +24,19 @@ class SubstanceFact(BaseModel):
     confidence: float = 0.8
 
 
+class ExhibitFact(BaseModel):
+    status: str
+    description: str
+    quantity: Quantity | None = None
+    source_text: str | None = None
+
+
 class ExtractedFacts(BaseModel):
     actors: list[Actor] = Field(default_factory=list)
     actions: list[str] = Field(default_factory=list)
     objects: list[str] = Field(default_factory=list)
     substances: list[SubstanceFact] = Field(default_factory=list)
+    exhibits: list[ExhibitFact] = Field(default_factory=list)
     quantities: list[Quantity] = Field(default_factory=list)
     consequences: list[str] = Field(default_factory=list)
     age_info: list[str] = Field(default_factory=list)
