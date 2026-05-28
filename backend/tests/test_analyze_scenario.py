@@ -23,5 +23,16 @@ def test_drug_clarifying_questions_cover_core_gaps():
     questions = build_clarifying_questions(facts, scenario, missing)
 
     assert any("khối lượng" in question or "số lượng" in question for question in questions)
+    assert any("tang vật" in question and "tiêu thụ" in question for question in questions)
     assert any("người bán" in question or "cung cấp" in question for question in questions)
     assert any("rủ rê" in question or "địa điểm" in question for question in questions)
+
+
+def test_drug_clarifying_questions_for_consumed_exhibit():
+    scenario = "A rủ B sử dụng ketamin, tang vật đã tiêu thụ hết nên không còn tang vật khi bị bắt"
+    facts = extract_facts(scenario)
+    missing = detect_missing_facts(facts, scenario)
+    questions = build_clarifying_questions(facts, scenario, missing)
+
+    assert any("xét nghiệm dương tính" in question for question in questions)
+    assert not any("trường hợp nào" in question for question in questions)

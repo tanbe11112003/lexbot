@@ -24,8 +24,23 @@ def build_clarifying_questions(facts: ExtractedFacts, scenario: str, missing: li
     action_norms = {normalize_text(action) for action in facts.actions}
 
     if _is_drug_related(facts, scenario, missing):
+        no_exhibit_known = any("không còn tang vật" in item for item in facts.evidence + facts.unknowns) or any(
+            term in norm for term in ["khong con tang vat", "tieu thu het", "su dung het", "khong thu giu duoc"]
+        )
+        if not no_exhibit_known:
+            questions.append(
+                "Tình trạng tang vật là trường hợp nào: đã tiêu thụ/sử dụng hết nên không còn hiện vật khi bị bắt, "
+                "hay còn tang vật bị thu giữ?"
+            )
         if not facts.quantities:
-            questions.append("Chất ma túy có khối lượng, hàm lượng hoặc số lượng cụ thể là bao nhiêu?")
+            questions.append(
+                "Nếu còn tang vật bị thu giữ, khối lượng/hàm lượng cụ thể là bao nhiêu gam; hoặc số lượng bao nhiêu viên/gói?"
+            )
+        if no_exhibit_known:
+            questions.append(
+                "Nếu tang vật đã bị tiêu thụ hết hoặc không còn hiện vật, hiện có căn cứ nào khác không: xét nghiệm dương tính, "
+                "lời khai, camera, tin nhắn, chuyển khoản hoặc người cung cấp?"
+            )
         if not any("giám định" in item or "dương tính" in item for item in facts.evidence):
             questions.append("Đã có kết luận giám định xác định loại chất ma túy chưa?")
         if not any(term in norm for term in ["nguoi mua", "mua cua ai", "mua tu ai"]):
