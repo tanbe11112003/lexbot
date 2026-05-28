@@ -73,6 +73,34 @@ curl -X POST http://127.0.0.1:8000/normalize -H "Content-Type: application/json"
 curl -X POST http://127.0.0.1:8000/analyze-scenario -H "Content-Type: application/json" -d "{\"scenario\":\"A 17 tuổi mua 2 viên thuốc lắc cho bạn dùng trong karaoke\",\"top_k\":8,\"include_debug\":true}"
 ```
 
+## Multi-turn Legal Chat
+
+Endpoint mới `/chat/legal` quản lý một phiên vụ việc bằng `case_id`. Nếu tình huống thiếu dữ kiện trọng yếu, bot trả về `status=collecting_facts`, danh sách `missing_facts` và `clarifying_questions` thay vì chốt tội danh/khoản. Khi người dùng gửi thêm thông tin với cùng `case_id`, hệ thống merge facts cũ/mới rồi mới chạy pipeline retrieval + reasoning nếu đủ dữ kiện.
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat/legal -H "Content-Type: application/json" -d "{\"message\":\"A rủ B đi bay phòng, có ketamin và thuốc lắc.\",\"top_k\":8,\"include_debug\":true}"
+```
+
+Ví dụ phản hồi rút gọn khi thiếu dữ kiện:
+
+```json
+{
+  "case_id": "uuid",
+  "status": "collecting_facts",
+  "missing_facts": [
+    {"label": "Ma túy", "critical": true, "description": "Ma túy: thiếu khối lượng/hàm lượng hoặc số lượng để xác định khoản."}
+  ],
+  "clarifying_questions": ["Đã có kết luận giám định xác định loại chất ma túy chưa?"],
+  "final_answer": "Chưa đủ dữ kiện để kết luận cuối cùng..."
+}
+```
+
+Gửi lượt bổ sung:
+
+```bash
+curl -X POST http://127.0.0.1:8000/chat/legal -H "Content-Type: application/json" -d "{\"case_id\":\"<case_id từ lượt trước>\",\"message\":\"Có kết luận giám định, ketamine 1g, MDMA 0.5g, A đặt phòng và nhờ người mua, B cùng sử dụng.\"}"
+```
+
 ## Test Cases Gợi Ý
 
 ```bash
@@ -93,10 +121,12 @@ curl -X POST http://127.0.0.1:8000/analyze-scenario -H "Content-Type: applicatio
 - Cross-encoder reranker optional.
 - Legal matcher scoring minh bạch và reasoner phân loại crime/supporting/general rule.
 - Validator chống hallucination theo điều luật, ngôn ngữ kết luận chắc chắn khi thiếu dữ kiện.
+- Dialogue Manager cho `/chat/legal`: fact extraction, fact merge, missing fact detection, answer gate, session store in-memory.
 
 ## Giới Hạn
 
 - Không import lại dữ liệu, không parse PDF, không dùng `deepseek_merged.json`.
 - Vector search chỉ chạy nếu đã có embedding/index và `USE_VECTOR_SEARCH=true`.
 - Reranker/underthesea/OpenAI đều optional; nếu thiếu model hoặc key, hệ thống fallback template.
+- Session `/chat/legal` hiện lưu in-memory, phù hợp demo/dev và có thể thay bằng Redis/PostgreSQL sau.
 - Kết quả là phân tích hỗ trợ, không thay thế kết luận điều tra/tòa án.

@@ -28,5 +28,13 @@ class AnalyzeScenarioRequest(BaseModel):
     answer_style: Literal["auto", "balanced", "conversational", "brief", "educational", "structured"] = "auto"
 
 
+class LegalChatRequest(BaseModel):
+    message: str = Field(min_length=1)
+    case_id: str | None = None
+    top_k: int = Field(default=8, ge=1, le=30)
+    include_debug: bool = False
+    answer_style: Literal["auto", "balanced", "conversational", "brief", "educational", "structured"] = "auto"
+
+
 class NormalizeRequest(BaseModel):
     text: str = Field(min_length=1)

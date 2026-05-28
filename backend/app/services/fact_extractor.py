@@ -55,7 +55,7 @@ def _parse_float(raw: str) -> float | None:
 _ACTOR_STOPWORDS = {
     "Bộ", "Điều", "Khoản", "Tội", "Khi", "Nếu", "Tình", "Người", "Các", "Theo",
     "Trong", "Hiện", "Căn", "Tuy", "Do", "Vì", "Với", "Ca", "Nam", "Nữ",
-    "Tương", "Những", "Long", "Sơn", "Ngọc", "Minh", "Nhật", "Tết",
+    "Tương", "Những", "Long", "Sơn", "Ngọc", "Minh", "Nhật", "Tết", "Có",
 }
 _TITLE_PREFIX_RE = re.compile(r"^(?:ca\s+sĩ|nam\s+ca\s+sĩ|nữ\s+ca\s+sĩ|ông|bà|anh|chị|bị\s+can|bị\s+cáo)\s+", re.I)
 
@@ -184,6 +184,15 @@ def _extract_exhibits(text: str, quantities: list[Quantity]) -> list[ExhibitFact
     return exhibits
 
 
+def _quantity_near_alias(text: str, alias: str, fallback: Quantity | None) -> Quantity | None:
+    pattern = rf"{re.escape(alias)}\s*(\d+(?:[\.,]\d+)?)\s*(kg|g|gam|viên|gói)"
+    match = re.search(pattern, text, flags=re.I)
+    if not match:
+        return fallback
+    raw_text = f"{match.group(1)}{match.group(2)}"
+    return Quantity(value=_parse_float(match.group(1)), unit=match.group(2).lower(), raw_text=raw_text)
+
+
 def _regex_extract(text: str) -> ExtractedFacts:
     norm = normalize_text(text)
     lowered = (text or "").lower()
@@ -216,7 +225,7 @@ def _regex_extract(text: str) -> ExtractedFacts:
         else:
             matched = alias_norm in norm
         if matched:
-            quantity = facts.quantities[0] if facts.quantities else None
+            quantity = _quantity_near_alias(text, alias, facts.quantities[0] if facts.quantities else None)
             facts.substances.append(SubstanceFact(name=name, alias=alias, quantity=quantity, confidence=0.9))
     facts.objects = [s.name for s in facts.substances]
     tokens = set(norm.split())
