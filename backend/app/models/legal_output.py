@@ -65,6 +65,7 @@ class ScenarioAnalysisResponse(BaseModel):
     matched_conditions: list[MatchedElement] = Field(default_factory=list)
     possible_penalty_frames: list[dict[str, Any]] = Field(default_factory=list)
     missing_facts: list[str] = Field(default_factory=list)
+    clarifying_questions: list[str] = Field(default_factory=list)
     legal_reasoning: list[LegalReasoningItem] = Field(default_factory=list)
     final_answer: str
     confidence: float = 0.0

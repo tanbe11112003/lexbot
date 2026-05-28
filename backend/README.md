@@ -11,6 +11,29 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload
 ```
 
+## Chạy Backend Bằng Docker
+
+Backend đọc cấu hình Neo4j Aura và OpenAI từ `backend/.env`.
+
+```powershell
+cd C:\Users\Admin\Downloads\2\blhs_graph_chatbot_full_upgrade_v1
+docker compose up --build backend
+```
+
+Sau khi container chạy:
+
+```text
+API docs : http://127.0.0.1:8000/docs
+UI demo  : http://127.0.0.1:8000/ui
+Health   : http://127.0.0.1:8000/health
+```
+
+Nếu muốn chạy Neo4j local trong compose thay vì Neo4j Aura, bật profile riêng:
+
+```powershell
+docker compose --profile local-neo4j up --build
+```
+
 ## Upload CSV Lên Neo4j Aura
 
 Script `scripts/import_to_aura.py` đọc cấu hình Aura từ `backend/.env` và import dữ liệu trong `neo4j_import` bằng Neo4j driver. Mặc định script dùng `MERGE`, không xoá dữ liệu có sẵn.

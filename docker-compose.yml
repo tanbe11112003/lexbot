@@ -1,7 +1,20 @@
 services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: blhs-graph-chatbot-backend
+    env_file:
+      - ./backend/.env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
   neo4j:
     image: neo4j:5.22.0-community
     container_name: blhs-neo4j-full-upgrade
+    profiles:
+      - local-neo4j
     ports:
       - "7474:7474"
       - "7687:7687"

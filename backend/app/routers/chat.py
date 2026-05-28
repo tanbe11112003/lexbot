@@ -5,6 +5,7 @@ from fastapi import APIRouter
 from app.models.legal_output import CandidateArticle, LegalContext, ScenarioAnalysisResponse
 from app.models.schemas import AnalyzeScenarioRequest
 from app.services.answer_generator import generate_answer
+from app.services.clarifying_questions import build_clarifying_questions
 from app.services.context_builder import citations_from_contexts
 from app.services.decomposer import decompose_query
 from app.services.fact_extractor import extract_facts
@@ -80,6 +81,7 @@ def analyze_scenario(req: AnalyzeScenarioRequest) -> ScenarioAnalysisResponse:
 
     contexts = fetch_contexts([str(c.get("article_code")) for c in candidates_raw if c.get("article_code")])
     missing = detect_missing_facts(facts, req.scenario)
+    clarifying_questions = build_clarifying_questions(facts, req.scenario, missing)
     reasoning = reason_over_contexts(contexts, facts, normalized, missing)
     reasoning_rank = {item.article_code: idx for idx, item in enumerate(reasoning)}
     reasoning_score = {item.article_code: item.confidence for item in reasoning}
@@ -96,7 +98,15 @@ def analyze_scenario(req: AnalyzeScenarioRequest) -> ScenarioAnalysisResponse:
         if context_titles.get(code):
             candidate["title"] = context_titles[code]
     candidates_raw = sorted(candidates_raw, key=lambda c: reasoning_rank.get(str(c.get("article_code")), 999))
-    answer = generate_answer(req.scenario, facts, contexts, reasoning, missing)
+    answer = generate_answer(
+        req.scenario,
+        facts,
+        contexts,
+        reasoning,
+        missing,
+        answer_style=req.answer_style,
+        clarifying_questions=clarifying_questions,
+    )
     confidence = max([r.confidence for r in reasoning], default=0.3)
     answer, confidence, warnings = validate_answer(answer, contexts, missing, reasoning, confidence)
 
@@ -131,6 +141,7 @@ def analyze_scenario(req: AnalyzeScenarioRequest) -> ScenarioAnalysisResponse:
         matched_conditions=matched_conditions,
         possible_penalty_frames=possible_penalty_frames,
         missing_facts=missing,
+        clarifying_questions=clarifying_questions,
         legal_reasoning=reasoning,
         final_answer=answer,
         confidence=confidence,

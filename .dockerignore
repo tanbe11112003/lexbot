@@ -1,0 +1,14 @@
+.git
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.mypy_cache
+.ruff_cache
+neo4j_data
+neo4j_logs
+node_modules
+dist
+build
+backend/.env

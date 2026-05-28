@@ -12,47 +12,144 @@ from app.services.context_builder import build_context_text
 logger = logging.getLogger(__name__)
 
 
-def _template_answer(facts: ExtractedFacts, reasoning: list[LegalReasoningItem], missing: list[str]) -> str:
+STYLE_GUIDANCE: dict[str, str] = {
+    "balanced": "Trả lời tự nhiên, có đoạn ngắn và gạch đầu dòng khi thật sự cần.",
+    "conversational": "Trả lời như đang trao đổi với người dùng, mềm hơn nhưng vẫn thận trọng pháp lý.",
+    "brief": "Trả lời ngắn gọn, ưu tiên kết luận có điều kiện và các điểm cần hỏi thêm.",
+    "educational": "Giải thích theo hướng học thuật dễ hiểu, nêu vì sao dữ kiện đó quan trọng.",
+    "structured": "Dùng các mục rõ ràng, nhưng không lặp lại khuôn 6 phần cố định.",
+}
+
+
+def _resolve_answer_style(answer_style: str, facts: ExtractedFacts, reasoning: list[LegalReasoningItem], missing: list[str]) -> str:
+    if answer_style != "auto":
+        return answer_style if answer_style in STYLE_GUIDANCE else "balanced"
+    if missing:
+        return "conversational"
+    if len(reasoning) > 3:
+        return "educational"
+    if len(facts.actions) <= 1 and len(facts.actors) <= 1:
+        return "brief"
+    return "balanced"
+
+
+def _top_articles(reasoning: list[LegalReasoningItem]) -> str:
+    articles = [f"Điều {item.article_code} ({item.title})" for item in reasoning[:4]]
+    return ", ".join(articles) if articles else "chưa xác định được điều luật ứng viên đủ tin cậy"
+
+
+def _fallback_summary(facts: ExtractedFacts) -> str:
+    actors = ", ".join(a.name + (f" ({a.age} tuổi)" if a.age else "") for a in facts.actors) or "chủ thể chưa rõ"
+    actions = ", ".join(facts.actions) or "hành vi chưa rõ"
+    objects = ", ".join(facts.objects + [s.name for s in facts.substances] + facts.consequences) or "đối tượng/hậu quả chưa rõ"
+    return f"Hiện mình nhận diện được {actors}; hành vi/tín hiệu là {actions}; đối tượng hoặc hậu quả liên quan là {objects}."
+
+
+def _question_block(clarifying_questions: list[str]) -> list[str]:
+    if not clarifying_questions:
+        return []
+    return ["", "Để chắc hơn, mình cần hỏi thêm:", *[f"- {question}" for question in clarifying_questions[:6]]]
+
+
+def _template_answer(
+    facts: ExtractedFacts,
+    reasoning: list[LegalReasoningItem],
+    missing: list[str],
+    answer_style: str = "auto",
+    clarifying_questions: list[str] | None = None,
+) -> str:
+    clarifying_questions = clarifying_questions or []
+    style = _resolve_answer_style(answer_style, facts, reasoning, missing)
+    summary = _fallback_summary(facts)
+    articles = _top_articles(reasoning)
+    frames = [
+        f"Điều {item.article_code}, khung [{pf.get('id')}]: {pf.get('text')}"
+        for item in reasoning
+        for pf in item.possible_penalty_frames[:2]
+        if pf.get("text")
+    ]
+
+    if style == "brief":
+        lines = [
+            f"{summary} Với dữ kiện hiện có, có thể xem xét {articles}, nhưng chưa nên chốt tội danh/khoản nếu các dữ kiện trọng yếu chưa rõ.",
+        ]
+        if missing:
+            lines.append("Điểm còn thiếu chính: " + "; ".join(missing[:3]))
+        lines.extend(_question_block(clarifying_questions))
+        return "\n".join(lines)
+
+    if style == "conversational":
+        lines = [
+            f"Mình chưa muốn kết luận quá sớm ở tình huống này. {summary}",
+            f"Hướng pháp lý có thể đặt ra là {articles}. Tuy vậy, kết luận cuối cùng còn phụ thuộc vào chứng cứ, kết quả giám định và vai trò cụ thể của từng người.",
+        ]
+        if frames:
+            lines.append("Một số khung phạt có thể phải đối chiếu: " + "; ".join(frames[:3]))
+        if missing:
+            lines.append("Những điểm đang làm kết luận chưa chắc: " + "; ".join(missing[:4]))
+        lines.extend(_question_block(clarifying_questions))
+        return "\n".join(lines)
+
+    if style == "educational":
+        lines = [
+            f"Nhìn theo từng bước, trước hết cần tách dữ kiện khỏi kết luận. {summary}",
+            f"Sau đó mới đối chiếu với điều luật. Các điều nổi bật hiện tại là {articles}.",
+        ]
+        if missing:
+            lines.append("Các dữ kiện còn thiếu quan trọng vì chúng quyết định đúng tội danh, đúng khoản và đúng vai trò: " + "; ".join(missing[:5]))
+        if frames:
+            lines.append("Khung hình phạt chỉ nên xem là khả năng tham khảo lúc này: " + "; ".join(frames[:4]))
+        lines.append("Vì vậy, câu trả lời nên dừng ở mức có dấu hiệu/có thể xem xét, chưa đủ căn cứ để kết luận chắc chắn.")
+        lines.extend(_question_block(clarifying_questions))
+        return "\n".join(lines)
+
+    if style == "structured":
+        lines = [
+            "Nhận định sơ bộ",
+            summary,
+            "",
+            "Điều luật cần đối chiếu",
+            f"- {articles}",
+            "",
+            "Lưu ý trước khi kết luận",
+        ]
+        lines.extend([f"- {m}" for m in missing[:6]] or ["- Chưa phát hiện thiếu dữ kiện trọng yếu, nhưng vẫn cần kiểm tra chứng cứ thực tế."])
+        if frames:
+            lines.extend(["", "Khung phạt có thể liên quan", *[f"- {frame}" for frame in frames[:5]]])
+        lines.extend(_question_block(clarifying_questions))
+        return "\n".join(lines)
+
     lines: list[str] = []
-    lines.append("1. Dữ kiện đã nhận diện")
-    lines.append(f"- Chủ thể: {', '.join(a.name + (f' ({a.age} tuổi)' if a.age else '') for a in facts.actors) or 'chưa rõ'}")
-    lines.append(f"- Hành vi/tín hiệu: {', '.join(facts.actions) or 'chưa rõ'}")
-    lines.append(f"- Đối tượng/chất/hậu quả: {', '.join(facts.objects + facts.consequences) or 'chưa rõ'}")
-    lines.append("")
-    lines.append("2. Điều luật có thể liên quan")
-    for item in reasoning[:8]:
-        role = "tội danh có thể xem xét" if item.classification == "crime_candidate" else "quy định hỗ trợ"
-        lines.append(f"- Điều {item.article_code} - {item.title}: {role}.")
-    lines.append("")
-    lines.append("3. Phân tích theo từng khả năng")
-    for item in reasoning[:5]:
-        lines.append(f"- Điều {item.article_code}: có dấu hiệu liên quan, nhưng cần đối chiếu đủ mặt khách quan, chủ thể, lỗi/mục đích và các điều kiện trong điều luật.")
-    lines.append("")
-    lines.append("4. Khung hình phạt có thể áp dụng")
-    frames = []
-    for item in reasoning:
-        for pf in item.possible_penalty_frames[:3]:
-            if pf.get("text"):
-                frames.append(f"- Điều {item.article_code}, khung [{pf.get('id')}]: {pf.get('text')}")
-    lines.extend(frames[:8] or ["- Chưa đủ dữ kiện để chọn khoản/khung cụ thể."])
-    lines.append("")
-    lines.append("5. Dữ kiện còn thiếu")
-    lines.extend([f"- {m}" for m in missing] or ["- Chưa phát hiện thiếu dữ kiện trọng yếu, nhưng vẫn cần kiểm tra chứng cứ thực tế."])
-    lines.append("")
-    lines.append("6. Kết luận thận trọng")
-    lines.append("Tình huống có thể được xem xét theo các điều nêu trên, nhưng chưa đủ căn cứ để kết luận chắc chắn một tội danh hoặc một khoản cụ thể nếu các dữ kiện còn thiếu chưa được làm rõ. Kết luận cuối cùng tùy kết quả giám định/điều tra và chứng cứ.")
+    lines.append(summary)
+    lines.append(f"Các điều luật có thể liên quan gồm {articles}. Đây mới là hướng đối chiếu, không phải kết luận chắc chắn.")
+    if frames:
+        lines.append("Khung phạt có thể phải kiểm tra thêm: " + "; ".join(frames[:4]))
+    if missing:
+        lines.append("Những dữ kiện còn thiếu đang ảnh hưởng trực tiếp đến kết luận: " + "; ".join(missing[:5]))
+    lines.append("Kết luận nên giữ ở mức thận trọng cho đến khi làm rõ chứng cứ, vai trò từng người và điều kiện trong điều luật.")
+    lines.extend(_question_block(clarifying_questions))
     return "\n".join(lines)
 
 
-def generate_answer(scenario: str, facts: ExtractedFacts, contexts: list[dict], reasoning: list[LegalReasoningItem], missing: list[str]) -> str:
+def generate_answer(
+    scenario: str,
+    facts: ExtractedFacts,
+    contexts: list[dict],
+    reasoning: list[LegalReasoningItem],
+    missing: list[str],
+    answer_style: str = "auto",
+    clarifying_questions: list[str] | None = None,
+) -> str:
+    clarifying_questions = clarifying_questions or []
+    resolved_style = _resolve_answer_style(answer_style, facts, reasoning, missing)
     if not settings.openai_api_key:
-        return _template_answer(facts, reasoning, missing)
+        return _template_answer(facts, reasoning, missing, resolved_style, clarifying_questions)
     try:
         from openai import OpenAI
         client = OpenAI(api_key=settings.openai_api_key)
         resp = client.chat.completions.create(
             model=settings.openai_model,
-            temperature=0.2,
+            temperature=0.35 if resolved_style in {"conversational", "educational"} else 0.25,
             messages=[
                 {"role": "system", "content": ANSWER_SYSTEM},
                 {"role": "user", "content": ANSWER_USER.format(
@@ -60,10 +157,12 @@ def generate_answer(scenario: str, facts: ExtractedFacts, contexts: list[dict], 
                     facts=json.dumps(facts.model_dump(), ensure_ascii=False),
                     context=build_context_text(contexts),
                     missing_facts=json.dumps(missing, ensure_ascii=False),
+                    clarifying_questions=json.dumps(clarifying_questions, ensure_ascii=False),
+                    answer_style=f"{resolved_style}: {STYLE_GUIDANCE[resolved_style]}",
                 )},
             ],
         )
-        return resp.choices[0].message.content or _template_answer(facts, reasoning, missing)
+        return resp.choices[0].message.content or _template_answer(facts, reasoning, missing, resolved_style, clarifying_questions)
     except Exception as exc:
         logger.warning("LLM answer skipped: %s", exc)
-        return _template_answer(facts, reasoning, missing)
+        return _template_answer(facts, reasoning, missing, resolved_style, clarifying_questions)

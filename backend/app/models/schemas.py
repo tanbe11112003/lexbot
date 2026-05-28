@@ -25,6 +25,7 @@ class AnalyzeScenarioRequest(BaseModel):
     scenario: str = Field(min_length=1)
     top_k: int = Field(default=8, ge=1, le=30)
     include_debug: bool = False
+    answer_style: Literal["auto", "balanced", "conversational", "brief", "educational", "structured"] = "auto"
 
 
 class NormalizeRequest(BaseModel):

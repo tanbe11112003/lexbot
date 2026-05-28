@@ -1,4 +1,5 @@
 from app.services.fact_extractor import extract_facts
+from app.services.clarifying_questions import build_clarifying_questions
 from app.services.legal_matcher import detect_missing_facts
 
 
@@ -13,3 +14,14 @@ def test_missing_drug_forensics():
     facts = extract_facts("A rủ B đi bay phòng, có ketamin trong phòng karaoke")
     missing = detect_missing_facts(facts, "")
     assert any("giám định" in m for m in missing)
+
+
+def test_drug_clarifying_questions_cover_core_gaps():
+    scenario = "A rủ B đi bay phòng, có ketamin trong phòng karaoke"
+    facts = extract_facts(scenario)
+    missing = detect_missing_facts(facts, scenario)
+    questions = build_clarifying_questions(facts, scenario, missing)
+
+    assert any("khối lượng" in question or "số lượng" in question for question in questions)
+    assert any("người bán" in question or "cung cấp" in question for question in questions)
+    assert any("rủ rê" in question or "địa điểm" in question for question in questions)
