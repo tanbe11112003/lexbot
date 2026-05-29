@@ -130,7 +130,7 @@ class GraphLawPipeline:
         if code in {"insufficient_quota", "quota_exceeded"}:
             return True
         return "insufficient_quota" in message or "quota" in message
-
+# gọi LLM để phân tích câu hỏi, xác định category, intent, law_id, search_queries, extracted_facts
     def _chat(self, prompt: str, system: str | None = None, temperature: float = 0.1, max_tokens: int = 1200) -> str:
         selected_model = CHAT_MODEL_OVERRIDE.get()
         if selected_model == "gemini-2.5-flash":
@@ -176,13 +176,13 @@ class GraphLawPipeline:
 
             self.embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
         return self.embedding_model
-
+# trả về các luật có trong Neo4j để LLM phân tích câu hỏi, nếu LLM không xác định được law_id chính xác
     def available_laws(self):
         rows = self._run_cypher("MATCH (l:Law) RETURN l.id AS id, l.name AS name, l.field AS field ORDER BY l.id")
         return {row["id"]: {"name": row.get("name"), "field": row.get("field")} for row in rows}
-
+# query structurer bằng LLM 
     def analyze_query(self, question: str) -> dict[str, Any]:
-        laws = self.available_laws()
+        laws = self.available_laws() # lấy phạm vi dữ liệu nội bộ trước khi gọi LLM 
         prompt = f"""Bạn là bộ phân tích câu hỏi cho hệ thống Graph RAG pháp luật Việt Nam.
 
 Nhiệm vụ: phân tích câu hỏi người dùng và trả JSON phục vụ truy xuất Neo4j.
@@ -213,7 +213,7 @@ Yêu cầu JSON:
 
 Chỉ trả JSON hợp lệ, không markdown.
 
-Câu hỏi: {question}"""
+Câu hỏi: {question}""" 
         fallback = {
             "is_relevant": True,
             "category": "CONSULTATION",
@@ -222,6 +222,7 @@ Câu hỏi: {question}"""
             "search_queries": [question],
             "extracted_facts": {},
         }
+# fallback nếu LLM trả về không hợp lệ hoặc lỗi, coi như câu hỏi liên quan pháp luật nhưng không xác định được chi tiết
         try:
             data = extract_json_object(self._chat(prompt, temperature=0, max_tokens=700))
         except Exception:
@@ -229,10 +230,13 @@ Câu hỏi: {question}"""
 
         if data.get("category") not in {"GRAPH_LOOKUP", "CONSULTATION", "NON_LEGAL"}:
             data["category"] = "CONSULTATION"
+        # Nếu search_queries không phải list hoặc rỗng, thì dùng [question]
         if not isinstance(data.get("search_queries"), list) or not data["search_queries"]:
             data["search_queries"] = [question]
+        # Nếu law_id không nằm trong danh sách luật Neo4j, gọi detect_law(question)
         if data.get("law_id") not in laws:
             data["law_id"] = self.detect_law(question)
+        # Nếu law_ids không hợp lệ, lọc chỉ giữ các law_id tồn tại trong Neo4j
         if isinstance(data.get("law_ids"), list):
             data["law_ids"] = [law_id for law_id in data["law_ids"] if law_id in laws]
         else:
@@ -240,7 +244,7 @@ Câu hỏi: {question}"""
         data.setdefault("is_relevant", data["category"] != "NON_LEGAL")
         data.setdefault("extracted_facts", {})
         data.setdefault("intent", question)
-        return data
+        return data # trả về category, law_id, law_ids, search_queries, extracted_facts
 
     def detect_law(self, question: str):
         candidates = self.available_laws()
@@ -385,7 +389,7 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
             numbers.update({"213", "219"})
 
         return sorted(numbers, key=lambda value: int(re.sub(r"\D", "", value) or 0))
-
+# lấy danh sách các luật liên quan dựa trên law_id chính và law_ids phụ
     def related_law_ids(self, question: str, analysis: dict[str, Any], primary_law_id: str | None) -> list[str]:
         available_laws = self.available_laws()
         law_ids = []
@@ -399,12 +403,150 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
             add_law(law_id)
 
         text = self._combined_query_text(question, analysis)
-        has_family_issue = any(term in text for term in ["ly hon", "nuoi con", "vo chong", "cap duong"])
-        has_asset_issue = any(term in text for term in ["tai san", "chia tai san", "tai san chung", "so huu chung"])
+        has_family_issue = any(
+            term in text
+            for term in [
+                "ly hon",
+                "nuoi con",
+                "vo chong",
+                "vo cu",
+                "chong cu",
+                "cap duong",
+                "tai san chung vo chong",
+                "quyen nuoi con",
+            ]
+        )
+        has_asset_issue = any(
+            term in text
+            for term in [
+                "tai san",
+                "chia tai san",
+                "tai san chung",
+                "tai san rieng",
+                "so huu chung",
+                "nha dat",
+                "khoan no",
+                "no chung",
+            ]
+        )
+        has_civil_issue = any(
+            term in text
+            for term in [
+                "dan su",
+                "hop dong",
+                "giao dich",
+                "nghia vu",
+                "boi thuong",
+                "thiet hai",
+                "danh du",
+                "nhan pham",
+                "uy tin",
+                "doi song rieng tu",
+                "bi mat ca nhan",
+                "bi mat gia dinh",
+                "quyen nhan than",
+                "hinh anh",
+                "tai san",
+                "vay tien",
+                "no",
+                "so huu",
+            ]
+        )
+        has_criminal_issue = any(
+            term in text
+            for term in [
+                "hinh su",
+                "toi pham",
+                "trach nhiem hinh su",
+                "xu ly hinh su",
+                "lua dao",
+                "chiem doat",
+                "cuong doat",
+                "trom",
+                "gia mao",
+                "lam gia",
+                "de doa",
+                "uy hiep",
+                "gay thuong tich",
+                "xuc pham",
+                "vu khong",
+                "lam nhuc",
+                "tan cong",
+                "xam nhap trai phep",
+            ]
+        )
+        has_cyber_issue = any(
+            term in text
+            for term in [
+                "an ninh mang",
+                "khong gian mang",
+                "tren mang",
+                "mang xa hoi",
+                "facebook",
+                "internet",
+                "truc tuyen",
+                "tai khoan",
+                "du lieu ca nhan",
+                "thong tin ca nhan",
+                "dang tin",
+                "bai viet",
+                "chia se",
+                "phat tan",
+                "tin gia",
+                "sai su that",
+                "bi hack",
+                "hack",
+                "chiem quyen",
+                "tan cong he thong",
+                "he thong thong tin",
+            ]
+        )
+        has_education_issue = any(
+            term in text
+            for term in [
+                "luat giao duc",
+                "co so giao duc",
+                "nha truong",
+                "truong hoc",
+                "hoc sinh",
+                "sinh vien",
+                "nguoi hoc",
+                "giao vien",
+                "nha giao",
+                "phu huynh",
+                "cha me hoc sinh",
+                "ban dai dien cha me hoc sinh",
+                "nhap hoc",
+                "duoi hoc",
+                "ky luat",
+                "hoc phi",
+                "khoan thu",
+                "kiem dinh",
+                "van bang",
+                "chung chi",
+                "khoa hoc",
+                "hoc vien",
+            ]
+        )
+
         if has_family_issue:
             add_law("law_hon_nhan_gia_dinh")
         if has_asset_issue and has_family_issue:
             add_law("law_dan_su")
+        if has_cyber_issue:
+            add_law("law_an_ninh_mang")
+        if has_education_issue:
+            add_law("law_giao_duc")
+        if has_criminal_issue:
+            add_law("law_hinh_su")
+        if has_civil_issue:
+            add_law("law_dan_su")
+        if has_cyber_issue and (has_civil_issue or has_criminal_issue):
+            add_law("law_dan_su")
+        if has_cyber_issue and has_criminal_issue:
+            add_law("law_hinh_su")
+        if has_education_issue and (has_cyber_issue or has_criminal_issue or has_civil_issue):
+            add_law("law_giao_duc")
 
         return law_ids
 
@@ -741,7 +883,9 @@ Yêu cầu:
                 CHAT_MODEL_OVERRIDE.reset(token)
 
     def consultation_result(self, question: str, analysis: dict[str, Any], law_id: str, question_type: str = "consultation"):
+        # xác định luật cần truy xuất dựa trên law_id chính và law_ids phụ, cũng như nội dung câu hỏi để mở rộng nếu cần
         law_ids = self.related_law_ids(question, analysis, law_id)
+        # lấy danh sách luật chính và các luật phụ liên quan để truy vấn
         retrieval_rows = []
         contexts = []
         chunk_ids = []
@@ -832,8 +976,9 @@ Yêu cầu:
 
     def _ask(self, question: str):
         analysis = self.analyze_query(question)
+# mặc định là CONSULTATION và gọi hybrid retrival gồm vector search + keyword search và article number search
         category = analysis.get("category", "CONSULTATION")
-
+# nếu không liên quan gì tới pháp luật , gọi LLM ra trả lời
         if category == "NON_LEGAL" or not analysis.get("is_relevant", True):
             answer = self.generate_direct_answer(question)
             return {
@@ -852,6 +997,7 @@ Yêu cầu:
             }
 
         law_id = analysis.get("law_id") or self.detect_law(question)
+#  tra cứu theo article hoặc sinh Cypher trực tiếp phụ thuộc vào việc LLM có nhận diện được số điều luật cụ thể nào trong câu hỏi hay không
         if category == "GRAPH_LOOKUP":
             if self._article_numbers_from_analysis(question, analysis):
                 answer, payload = self.run_article_graph_lookup(question, analysis, law_id)
