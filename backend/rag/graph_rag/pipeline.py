@@ -1,5 +1,6 @@
 import json
 import re
+import threading
 import unicodedata
 from contextvars import ContextVar
 from typing import Any
@@ -62,12 +63,12 @@ class GraphLawPipeline:
     def __init__(self):
         self.driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASS))
         self.embedding_model = None
+        self.embedding_model_lock = threading.Lock()
         self.search_text_laws = set()
 
     def _run_cypher(self, query: str, params: dict[str, Any] | None = None):
         with self.driver.session() as session:
             return session.run(query, params or {}).data()
-
     def _chat_completion(
         self,
         base_url: str,
@@ -98,7 +99,7 @@ class GraphLawPipeline:
         )
         response.raise_for_status()
         return response.json()["choices"][0]["message"]["content"].strip()
-
+# phát hiện hết quota thì đổi model khác 
     def _is_quota_exhausted(self, error: Exception) -> bool:
         response = getattr(error, "response", None)
         if response is None:
@@ -172,9 +173,11 @@ class GraphLawPipeline:
 
     def _embedding_model(self):
         if self.embedding_model is None:
-            from sentence_transformers import SentenceTransformer
+            with self.embedding_model_lock:
+                if self.embedding_model is None:
+                    from sentence_transformers import SentenceTransformer
 
-            self.embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+                    self.embedding_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
         return self.embedding_model
 # trả về các luật có trong Neo4j để LLM phân tích câu hỏi, nếu LLM không xác định được law_id chính xác
     def available_laws(self):
@@ -292,7 +295,7 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
             self.search_text_laws.add(law_id)
             return True
         return False
-
+# từ phân tích của LLM, trích xuất các cụm từ khóa để truy vấn Neo4j, bao gồm cả việc mở rộng từ đồng nghĩa, loại bỏ stopwords và ưu tiên các cụm có liên quan đến search_queries và extracted_facts
     def _keyword_terms(self, question: str, analysis: dict[str, Any]) -> list[str]:
         stopwords = {
             "minh",
@@ -344,7 +347,7 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
             if len(token) >= 4 or token in {"ma", "tuy"}:
                 terms.add(token)
         return sorted(terms, key=lambda item: (-len(item.split()), -len(item), item))[:40]
-
+# từ phân tích của LLM, trích xuất các số điều có thể có trong câu hỏi, bao gồm cả việc nhận diện các cách viết tắt và ngôn ngữ tự nhiên, sau đó lọc theo law_id để tăng độ chính xác
     def _article_numbers_from_analysis(self, question: str, analysis: dict[str, Any]) -> list[str]:
         facts = analysis.get("extracted_facts") or {}
         parts = [
@@ -549,12 +552,14 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
             add_law("law_giao_duc")
 
         return law_ids
-
+# tìm kiếm theo số điều trong Neo4j, với điều kiện là article_source phải là 'LQ' để tránh nhầm với các số điều khác có thể xuất hiện trong text của Chunk
     def article_number_search_chunks(self, question: str, analysis: dict[str, Any], law_id: str):
         article_numbers = self._article_numbers_for_law(question, analysis, law_id)
         if not article_numbers:
             return []
+        # dùng cho tìm các loại article source khác 
         explicit_article_numbers = self._article_numbers_from_analysis(question, analysis)
+    #trường hợp có nhắc điều và bộ luật cụ thể thì search trực tiếp
         return self._run_cypher(
             """
             MATCH (chunk:Chunk {law_id:$law_id})
@@ -577,14 +582,15 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
                 "explicit_article_numbers": explicit_article_numbers,
             },
         )
-
+# thực hiện search theo từ khóa 
     def keyword_search_chunks(self, question: str, analysis: dict[str, Any], law_id: str, top_k: int = 20):
         terms = self._keyword_terms(question, analysis)
         if not terms:
             return []
+        # giới hạn số lượng ứng viên để đảm bảo hiệu suất, có thể điều chỉnh theo nhu cầu
         candidate_limit = max(top_k * 200, 2000)
         if self.has_chunk_search_text(law_id):
-            rows = self._run_cypher(
+            rows = self._run_cypher( # cypher này dùng cho dạng graph_lookup nhưng không dùng cho direct cypher
                 """
                 MATCH (chunk:Chunk {law_id:$law_id})
                 WITH chunk,
@@ -602,8 +608,6 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
             if rows:
                 return rows
 
-        # Backward-compatible fallback for Chunk nodes created before search_text
-        # existed. Re-run graph_rag.build_index to make this faster in Neo4j.
         candidates = self._run_cypher(
             """
             MATCH (chunk:Chunk {law_id:$law_id})
@@ -635,11 +639,12 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
                 )
         scored.sort(key=lambda item: (-item["keyword_score"], str(item.get("article_number") or ""), str(item.get("chunk_id") or "")))
         return scored[:candidate_limit]
-
+# search theo vector embedding, với mỗi query sẽ trả về top_k kết quả, sau đó sẽ gộp và xếp hạng lại dựa trên điểm số và metadata
     def vector_search_chunks(self, queries: list[str], law_id: str, top_k: int = 20, threshold: float = 0.35):
         model = self._embedding_model()
         rows_by_query = []
         for query in queries:
+        # tính embedding cho query, chuẩn hóa và truy vấn Neo4j vector index, lọc kết quả theo law_id và ngưỡng điểm số, trả về metadata để hỗ trợ xếp hạng sau này
             emb = model.encode([query], convert_to_numpy=True).astype("float32")
             emb = emb / (np.linalg.norm(emb, axis=1, keepdims=True) + 1e-12)
             rows = self._run_cypher(
@@ -659,13 +664,13 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
                     "search_k": max(top_k * 30, 200),
                     "embedding": emb[0].tolist(),
                     "law_id": law_id,
-                    "threshold": threshold,
+                    "threshold": threshold, # quy định là 0,35
                     "top_k": top_k,
                 },
             )
             rows_by_query.extend(rows)
         return rows_by_query
-
+# truy xuất chunks dựa trên câu hỏi và phân tích
     def retrieve_chunks(self, question: str, analysis: dict[str, Any], law_id: str, top_k: int = 16):
         scores: dict[str, float] = {}
         metadata: dict[str, dict[str, Any]] = {}
@@ -718,7 +723,7 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
             else:
                 duplicates.append(row)
         return (diverse + duplicates)[:top_k]
-
+# mở rộng context từ chunk đã truy xuất ,ưu tiên cùng điều luật sau đó mới đến cùng chương cùng luật 
     def expand_graph_context(self, chunk_ids: list[str], law_id: str, max_articles: int = 8):
         contexts = []
         seen_articles = set()
@@ -757,7 +762,7 @@ Chỉ trả JSON: {{"law_id":"..."}}"""
                 if len(contexts) >= max_articles:
                     return contexts
         return contexts
-
+# thực hiện lookup trên graph dựa trên câu hỏi và phân tích, trả về câu trả lời và payload chi tiết để debug
     def run_article_graph_lookup(self, question: str, analysis: dict[str, Any], law_id: str):
         retrieval_rows = self.article_number_search_chunks(question, analysis, law_id)
         chunk_ids = [row["chunk_id"] for row in retrieval_rows]
@@ -785,7 +790,7 @@ Yêu cầu:
             max_tokens=1600,
         )
         return answer, payload
-
+# trong trường hợp là câu hỏi GRAPH_LOOKUP thuộc dạng liệt kê 
     def generate_direct_cypher(self, question: str, analysis: dict[str, Any], law_id: str):
         schema = """
 (l:Law {id, name, field, mode, source, article_count})
@@ -886,11 +891,14 @@ Yêu cầu:
         # xác định luật cần truy xuất dựa trên law_id chính và law_ids phụ, cũng như nội dung câu hỏi để mở rộng nếu cần
         law_ids = self.related_law_ids(question, analysis, law_id)
         # lấy danh sách luật chính và các luật phụ liên quan để truy vấn
+        #chuẩn bị chỗ lưu kết quả retrieve dể gom tất cả kết quả từ luật liên quan
         retrieval_rows = []
         contexts = []
         chunk_ids = []
         for current_law_id in law_ids:
+        # kiểm tra luật đã có chunk index chưa
             self.ensure_chunk_index_for_law(current_law_id)
+        # chọn số lương chunk và điều cần lấy để truy xuất dựa trên việc đây có phải là luật chính hay phụ
             is_primary_law = current_law_id == law_id
             article_hint_count = len(self._article_numbers_for_law(question, analysis, current_law_id))
             current_top_k = 16 if is_primary_law else max(4, article_hint_count)
@@ -898,12 +906,18 @@ Yêu cầu:
                 max_articles = max(8, min(article_hint_count, 12)) if article_hint_count else 8
             else:
                 max_articles = max(2, min(article_hint_count, 4))
+            # gọi hybrid retrieval
             current_rows = self.retrieve_chunks(question, analysis, current_law_id, top_k=current_top_k)
+            # gom retrival metadata và mở rộng context cho từng luật liên quan
             retrieval_rows.extend([{**row, "law_id": current_law_id} for row in current_rows])
+            # lấy danh sách chunk id
             current_chunk_ids = [row["chunk_id"] for row in current_rows]
             chunk_ids.extend(current_chunk_ids)
+            # mở rộng context theo graph để lấy thêm dữ liệu liên quan 
             contexts.extend(self.expand_graph_context(current_chunk_ids, current_law_id, max_articles=max_articles))
+        # sinh câu trả lời bằng LLM từ context đã được retrieve
         answer = self.compose_answer(question, analysis, contexts)
+        # tạo trích dẫn cho câu trả lời từ context đã retrieve được
         citations = [
             {
                 "id": item.get("chunk_id"),
@@ -914,6 +928,7 @@ Yêu cầu:
             }
             for item in contexts
         ]
+        # trả về object kết quả đầy đủ bao gồm phân tích, kết quả truy xuất, context, trích dẫn và câu trả lời
         return {
             "status": "success",
             "question_type": question_type,
@@ -923,7 +938,7 @@ Yêu cầu:
             "analysis": analysis,
             "search_queries": analysis.get("search_queries", []),
             "chunk_ids": chunk_ids,
-            "concept_ids": chunk_ids,  # Backward-compatible API alias; values are Chunk IDs.
+            "concept_ids": chunk_ids,  
             "retrieval": retrieval_rows,
             "contexts": contexts,
             "citation": citations,

@@ -3,6 +3,7 @@ import json
 import os
 import signal
 import sys
+import threading
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -40,6 +41,7 @@ CORS(app)
 app.config["CORS_HEADERS"] = "Content-Type"
 
 pipeline = None
+pipeline_lock = threading.Lock()
 RAG_CACHE_VERSION = "graph-rag-v4"
 _redis_cache_cleared = False
 WEB_DIR = Path(os.getenv("WEB_DIR") or REPO_ROOT / "web")
@@ -50,8 +52,16 @@ QNA_THREADS = int(os.getenv("QNA_THREADS", "4"))
 def get_pipeline():
     global pipeline
     if pipeline is None:
-        pipeline = GraphLawPipeline()
+        with pipeline_lock:
+            if pipeline is None:
+                pipeline = GraphLawPipeline()
     return pipeline
+
+
+def warmup_pipeline():
+    current_pipeline = get_pipeline()
+    current_pipeline._embedding_model()
+    return current_pipeline
 
 
 def normalize_chat_model(model):
@@ -67,11 +77,11 @@ def read_cached_answer(question, model):
         return None
     return json.loads(cached.decode("utf-8"))
 
-
+# tạo cache key là câu hỏi và model
 def cache_key(question, model):
     return f"{RAG_CACHE_VERSION}:{model}:{question}"
 
-
+# xóa cache
 def clear_redis_answer_cache():
     global _redis_cache_cleared
     if _redis_cache_cleared:
@@ -91,7 +101,7 @@ def clear_redis_answer_cache():
     _redis_cache_cleared = True
     return deleted
 
-
+# shutdown thì xóa cache để tránh dữ liệu cũ khi khởi động lại server
 def cleanup_on_shutdown():
     try:
         deleted = clear_redis_answer_cache()
@@ -99,16 +109,16 @@ def cleanup_on_shutdown():
     except Exception as error:
         print(f"Error while clearing Redis answer cache: {error}")
 
-
+# bắt tín hiệu shutdown để dọn dẹp cache
 def handle_shutdown_signal(signum, frame):
     cleanup_on_shutdown()
     raise SystemExit(0)
 
-
+# lưu kết quả trả lời vào Redis cache 
 def write_cached_answer(question, model, result):
     redisClient.setex(cache_key(question, model), redis_ttl_seconds, json.dumps(result, ensure_ascii=False))
 
-
+# trả lời câu hỏi, ưu tiên lấy từ cache nếu có, nếu không thì chạy pipeline để tạo câu trả lời mới, sau đó lưu vào cache
 def answer_question(question, model=None, should_generate=True, use_cache=True):
     model = normalize_chat_model(model)
     if should_generate and use_cache:
@@ -126,7 +136,7 @@ def answer_question(question, model=None, should_generate=True, use_cache=True):
         write_cached_answer(question, model, result)
     return result
 
-
+# in kết quả ra terminal
 def print_terminal_result(result):
     print("\n=== Graph RAG result ===")
     print(f"Question type: {result.get('question_type')}")
@@ -303,6 +313,19 @@ def serve_web_asset(path):
 @app.route("/api/v1/models", methods=["GET"])
 def get_models():
     return {"models": sorted(SUPPORTED_CHAT_MODELS), "default": normalize_chat_model(None)}, 200
+
+
+@app.route("/api/v1/warmup", methods=["POST"])
+def warmup():
+    try:
+        decode_email_from_request()
+    except Exception:
+        return {"status": "error", "response": "Need authentication"}, 400
+    try:
+        warmup_pipeline()
+    except Exception as error:
+        return {"status": "error", "response": f"Error while warming up Graph RAG pipeline: {error}"}, 500
+    return {"status": "ok"}, 200
 
 
 @app.route("/api/v1/question", methods=["GET"])
