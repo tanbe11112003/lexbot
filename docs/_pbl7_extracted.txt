@@ -1,0 +1,508 @@
+001|ĐẠI HỌC ĐÀ NẴNG
+002|TRƯỜNG ĐẠI HỌC BÁCH KHOA
+003|KHOA CÔNG NGHỆ THÔNG TIN
+004|BÁO CÁO PBL7
+005|ĐỀ TÀI :
+006|Chatbot hỗ trợ tư vấn pháp luật
+007|sử dụng đồ thị tri thức
+008|Họ và tên
+009|Mã số sinh viên
+010|Lớp học phần
+011|Tôn Thất Bảo Văn
+012|102220175
+013|22Nh15B
+014|Thân Đức Nhật Tân
+015|102210276
+016|22Nh15B
+017|CBHD: TS. Đồng Ngọc Nguyên Thịnh
+018|Đà Nẵng, 05/2025
+019|BẢNG PHÂN CÔNG NHIỆM VỤ
+020|Thành viên
+021|Nhiệm vụ
+022|Tôn Thất Bảo Văn
+023|Xây dựng pipeline Graph RAG, thiết kế cấu trúc graph.
+024|Thực hiện cải tiến để cải thiện tốc độ và chất lượng câu trả lời của mô hình.
+025|Nạp dữ liệu vào Neo4j, tạo node, Chunk, tạo vector index và xử lý truy xuất context.
+026|Thu thập dữ liệu, làm sạch dữ liệu, chuẩn hóa định dạng văn bản  luật, xử lý lỗi ký tự / tách cấu trúc luật theo chương / điều / khoản / điểm, chuẩn bị dữ liệu đầu vào cho Neo4j và RAG.
+027|Xây dựng hoặc hoàn thiện giao diện người dùng, thực hiện test case hỏi đáp, kiểm thử câu hỏi dân sự/hình sự/câu hỏi nhiễu, ghi nhận kết quả, đánh giá output theo các metric.
+028|Cấu hình backend service, cấu hình Docker Compose, kết nối MySQL, Redis, Auth Service, kiểm tra lưu lịch sử hỏi đáp, cache, đăng nhập/xác thực và luồng request từ frontend đến AI service.
+029|Thân Đức Nhật Tân
+030|Triển khai production lên Vercel, FastAPI Cloud, Railway
+031|Thiết kế cấu trúc Graph, nạp dữ liệu lên neo4j, deloy Graph Database lên Neo4j Aura
+032|Viết Cypher Query cho việc truy vấn dữ liệu ở Graph Database
+033|Nâng cấp chatbot pháp luật nhiều lượt có khả năng hỏi thêm thông tin còn thiếu trước khi đưa ra câu trả lời pháp lý cuối cùng.
+034|Kết nối và sử dụng các dịch vụ LLM cho dự án
+035|Xây dựng giao diện người dùng, kiểm thử
+036|DANH MỤC TỪ VIẾT TẮT
+037|Từ viết tắt
+038|Từ đầy đủ
+039|Giải thích
+040|LLM
+041|Large Language Model
+042|Mô hình ngôn ngữ lớn
+043|RAG
+044|Retrieval-Augmented Generation
+045|Sinh tăng cường dữ liệu tìm kiếm
+046|KG
+047|Knowledge Graph
+048|Đồ thị tri thức
+049|AI
+050|Artificial Intelligence
+051|Trí tuệ nhân tạo
+052|DB
+053|Database
+054|Cơ sở dữ liệu
+055|TTL
+056|Time To Live
+057|Thời gian lưu trữ dữ liệu trước khi xóa vĩnh viễn
+058|CORS
+059|Cross-Origin Resource Sharing
+060|Cơ chế cho phép frontend ở domain khác gọi backend an toàn.
+061|RRF
+062|Reciprocal Rank Fusion
+063|Kỹ thuật hợp nhất thứ hạng kết quả từ nhiều bộ truy xuất.
+064|SSE
+065|Server-Sent Events
+066|Cơ chế streaming sự kiện một chiều từ server đến client.
+067|MỤC LỤC
+068|LỜI MỞ ĐẦU7
+069|1.TỔNG QUAN ĐỀ TÀI8
+070|1.1.Giới thiệu8
+071|1.2.Mục tiêu đề tài8
+072|1.2.1.Xây dựng hệ thống hỏi đáp pháp luật Tiếng Việt8
+073|1.2.2.Ứng dụng Graph RAG trong truy xuất tri thức pháp luật9
+074|1.2.3.Sinh câu trả lời dựa trên ngữ cảnh pháp luật được truy xuất9
+075|1.3.Phạm vi nghiên cứu9
+076|2.CƠ SỞ LÝ THUYẾT11
+077|2.1.Mô hình RAG và GraphRAG11
+078|2.1.1.Nguyên lý RAG (Retrieval-Augmented Generation)11
+079|2.1.2.Khái niệm KG-RAG (GraphRAG)11
+080|2.2.Vector Search và Embedding11
+081|2.2.1.Khái niệm embedding văn bản11
+082|2.2.2.Tìm kiếm ngữ nghĩa bằng vector11
+083|2.3.Mô hình ngôn ngữ lớn12
+084|2.4.Đồ thị tri thức pháp luật13
+085|2.5.Kết hợp KG-RAG cho bài toán pháp luật13
+086|2.6.Các tiêu chí đánh giá14
+087|3.TRIỂN KHAI HỆ THỐNG15
+088|3.1.Kiến trúc tổng thể hệ thống15
+089|3.2.Quy trình chunking, xử lý, truy xuất và lưu trữ dữ liệu16
+090|3.3.Sơ đồ tuần tự hệ thống20
+091|4.CHƯƠNG TRÌNH VÀ KẾT QUẢ27
+092|4.1.Tổng quan dữ liệu27
+093|4.1.1.Thu thập và lưu trữ dữ liệu27
+094|4.1.2.Xây dựng đồ thị tri thức31
+095|4.2.Giao diện của chương trình32
+096|4.3.Nhận xét chung và Đánh giá38
+097|5.KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN40
+098|5.1.Nhận xét và kết luận40
+099|5.2.Hướng phát triển40
+100|TÀI LIỆU THAM KHẢO41
+101|DANH MỤC HÌNH ẢNH
+102|Hình 1. Minh họa tìm kiếm ngữ nghĩa12
+103|Hình 2. Vai trò LLM trong pipeline RAG12
+104|Hình 3. Minh họa đồ thị tri thức Neo4j13
+105|Hình 4. Sơ đồ kiến trúc tổng thể hệ thống15
+106|Hình 5. Quy trình chunking dữ liệu pháp luật16
+107|Hình 6. Quy trình xử lý dữ liệu cho Graph RAG17
+108|Hình 7. Quy trình lưu trữ dữ liệu vào Neo4j18
+109|Hình 8. Quy trình truy xuất dữ liệu19
+110|Hình 9. Sơ đồ tuần tự tổng quan xử lý câu hỏi20
+111|Hình 10. Sơ đồ tuần tự định tuyến trong GraphLawPipeline.ask21
+112|Hình 11. Sơ đồ tuần tự nhánh CONSULTATION22
+113|Hình 12. Sơ đồ tuần tự nhánh GRAPH_LOOKUP24
+114|Hình 13. Sơ đồ tuần tự lưu kết quả và trả response26
+115|Hình 14. Thống kê cấu trúc dữ liệu pháp luật trong hệ thống27
+116|Hình 15. Minh họa auth-service (1)28
+117|Hình 16. Minh họa auth-service(2).28
+118|Hình 17. Minh họa QnA-service (1).29
+119|Hình 18. Minh họa QnA-service (2)29
+120|Hình 19. Minh họa Redis30
+121|Hình 20. Minh họa cấu hình Kong30
+122|Hình 21. Tổng quan quy trình xây dựng đồ thị tri thức31
+123|Hình 22. Tổng quan cơ sở tri thức được lưu trong Neo4j31
+124|Hình 23. Giao diện đăng nhập của chương trình32
+125|Hình 24. Giao diện đăng ký của chương trình32
+126|Hình 25. Minh họa xác thực tài khoản google33
+127|Hình 26. Giao diện chat của chương trình33
+128|Hình 27. Minh hoạ câu hỏi pháp lý giả định34
+129|Hình 28. Minh hoạ câu hỏi pháp luật có ngưỡng định lượng35
+130|Hình 29. Minh hoạ câu hỏi tư vấn dân sự, hợp đồng36
+131|Hình 30. Minh hoạ tình huống người chưa thành niên phạm tội và chính sách xử lý hình sự37
+132|Hình 31. Dashboard kết quả đánh giá39
+133|DANH MỤC BẢNG BIỂU
+134|Bảng 1. Phạm vi dữ liệu hệ thống9
+135|Bảng 2. Phạm vi chức năng hệ thống10
+136|Bảng 3. Các metric đánh giá hệ thống14
+137|Bảng 4. Ứng dụng các cơ sở dữ liệu trong chatbot26
+138|Bảng 5. Phân bố dữ liệu bộ kiểm thử37
+139|LỜI MỞ ĐẦU
+140|Hệ thống pháp luật Việt Nam có khối lượng văn bản lớn và được tổ chức theo nhiều lớp từ luật, nghị định, thông tư đến các quy định chi tiết. Trong phạm vi đề tài, nhóm tập trung vào năm chủ đề pháp điển đã được xây dựng dữ liệu trong hệ thống gồm Hình sự, Dân sự, Hôn nhân và gia đình, An ninh mạng và Giáo dục. Với người dùng phổ thông, việc tự xác định đúng điều luật, khoản, điểm và ngữ cảnh áp dụng thường mất nhiều thời gian nếu chỉ dựa vào tìm kiếm từ khóa.
+141|Từ nhu cầu đó, nhóm xây dựng SaulAI như một hệ thống hỏi đáp pháp luật tiếng Việt dựa trên Graph RAG. Hệ thống kết hợp đồ thị tri thức trong Neo4j với mô hình ngôn ngữ lớn để phân tích câu hỏi, truy xuất ngữ cảnh pháp luật liên quan và sinh câu trả lời có dẫn chiếu. Phương pháp này giúp câu trả lời không chỉ dựa vào độ trùng khớp từ khóa mà còn tận dụng quan hệ giữa luật, chương, điều, khoản, điểm và các nội dung đã được lập chỉ mục.
+142|TỔNG QUAN ĐỀ TÀI
+143|Giới thiệu
+144|Trong thời điểm hiện đại, pháp luật đóng vai trò nền tảng trong việc điều chỉnh các quan hệ xã hội, bảo vệ quyền và lợi ích hợp pháp của công dân, tổ chức và nhà nước. Việc tra cứu pháp luật vì vậy cần được hỗ trợ bằng các công cụ có khả năng tìm đúng quy định, diễn giải rõ ràng và giữ được căn cứ pháp lý cho từng câu trả lời.
+145|Dữ liệu pháp luật của SaulAI được xây dựng từ Bộ pháp điển Việt Nam. Pipeline hiện tại giới hạn phạm vi vào năm chủ đề: Hình sự, Dân sự, Hôn nhân và gia đình, An ninh mạng và Giáo dục. Việc giới hạn phạm vi giúp hệ thống tập trung vào chất lượng truy xuất và kiểm soát tốt hơn nguồn ngữ cảnh đưa vào mô hình.
+146|Việc tra cứu pháp luật có nhu cầu ngày càng tăng cao nhằm phục vụ những mục đích khác nhau của người dùng, đối với:
+147|Người dân thông thường cần hiểu quyền và nghĩa vụ pháp lý của mình trong đời sống hàng ngày, chẳng hạn như giao dịch dân sự, hôn nhân gia đình, trách nhiệm hình sự, quyền học tập hoặc quyền đối với dữ liệu cá nhân.
+148|Sinh viên luật cần tra cứu phục vụ học tập, nghiên cứu, làm bài tập tình huống và viết luận văn. Việc tra cứu nhanh và chính xác giúp tiết kiệm thời gian đáng kể.
+149|Doanh nghiệp và tổ chức cần tra cứu các quy định liên quan đến nghĩa vụ dân sự, bảo vệ dữ liệu cá nhân, an ninh mạng, giáo dục hoặc các tình huống có khả năng phát sinh trách nhiệm pháp lý.
+150|Các tổ chức xã hội và cơ quan nhà nước cần phổ biến kiến thức pháp luật đến cộng đồng, hỗ trợ người dân tiếp cận pháp luật một cách dễ dàng hơn.
+151|Luật sư và chuyên gia pháp lý cần tra cứu nhanh các quy định mới nhất để tư vấn cho khách hàng, đặc biệt khi pháp luật thay đổi liên tục.
+152|Khối lượng văn bản trong Bộ pháp điển, Bộ luật hình sự tạo ra thách thức cho việc tìm đúng quy định và hiểu đúng ngữ cảnh áp dụng. Người dùng thường gặp khó khăn khi cần xác định văn bản, điều khoản cụ thể, hoặc khi câu hỏi có nhiều dữ kiện cần đối chiếu giữa các quy định liên quan.
+153|Mục tiêu đề tài
+154|Xây dựng hệ thống hỏi đáp pháp luật Tiếng Việt
+155|Mục tiêu chính của đề tài là xây dựng hệ thống SaulAI hỏi đáp pháp luật tiếng Việt, bao gồm:
+156|Giao diện web cho phép người dùng đặt câu hỏi bằng ngôn ngữ tự nhiên tiếng Việt.
+157|Backend xử lý câu hỏi và sinh câu trả lời dựa trên dữ liệu pháp luật thực tế từ Bộ pháp điển Việt Nam.
+158|Hệ thống xác thực người dùng và lưu lịch sử hỏi đáp.
+159|Kiến trúc microservices có khả năng mở rộng và bảo trì dễ dàng.
+160|Ứng dụng Graph RAG trong truy xuất tri thức pháp luật
+161|Đề tài tập trung vào việc ứng dụng kiến trúc Graph RAG, cụ thể:
+162|Tổ chức dữ liệu pháp luật dưới dạng đồ thị tri thức trong Neo4j, biểu diễn cấu trúc phân cấp Law → Chapter → Article → Clause → Point.
+163|Kết hợp ba phương pháp truy xuất để tối đa hóa khả năng tìm đúng điều luật liên quan.
+164|Mở rộng ngữ cảnh theo cấu trúc graph để đảm bảo LLM nhận được thông tin đầy đủ.
+165|Tận dụng khả năng vector search tích hợp trong Neo4j để kết hợp tìm kiếm ngữ nghĩa với truy vấn đồ thị trong cùng một hệ thống.
+166|Sinh câu trả lời dựa trên ngữ cảnh pháp luật được truy xuất
+167|Sau khi truy xuất được các đoạn văn bản pháp luật liên quan, hệ thống sử dụng LLM để sinh câu trả lời và kết hợp nội dung từ nhiều điều luật thành câu trả lời thống nhất.
+168|Đồng thời, áp dụng quy định pháp luật vào tình huống cụ thể mà người dùng mô tả.
+169|Sử dụng ngôn ngữ phổ thông, giải thích thuật ngữ pháp lý khi cần. Kèm theo trích dẫn chính xác đến điều, khoản, điểm cụ thể để người dùng kiểm chứng.
+170|Hệ thống hỗ trợ hai model chat là gpt-5.5 và gemini-2.5-flash. gpt-5.5 được gọi qua OpenAI-compatible API, còn gemini-2.5-flash được gọi qua Gemini OpenAI-compatible endpoint. Khi gọi OpenAI gặp lỗi quota và có cấu hình Gemini API key, pipeline có cơ chế fallback sang Gemini.
+171|Phạm vi nghiên cứu
+172|Phạm vi dữ liệu :
+173|Bảng 1. Phạm vi dữ liệu hệ thống
+174|Lĩnh vực
+175|Văn bản luật
+176|Hình sự
+177|Bộ luật Hình sự 2015 (sửa đổi 2017)
+178|Dân sự
+179|Bộ luật Dân sự 2015
+180|Hôn nhân và gia đình
+181|Luật Hôn nhân và gia đình 2014
+182|An ninh mạng
+183|Luật An ninh mạng 2018
+184|Giáo dục
+185|Luật Giáo dục 2019
+186|Dữ liệu được thu thập từ Bộ pháp điển Việt Nam, các văn bản pháp luật được lọc, xử lý và cấu trúc hóa trước khi import vào hệ thống.
+187|Phạm vi chức năng :
+188|Bảng 2. Phạm vi chức năng hệ thống
+189|Chức năng
+190|Mô tả
+191|Hỏi đáp pháp luật
+192|Người dùng đặt câu hỏi bằng tiếng Việt, hệ thống trả lời dựa trên dữ liệu pháp luật đã lập chỉ mục.
+193|Phân loại câu hỏi tự động
+194|Hệ thống tự động phân loại câu hỏi thành tra cứu điều luật cụ thể, tư vấn tình huống, hoặc ngoài phạm vi.
+195|Truy xuất hybrid
+196|Kết hợp article number lookup, keyword search, và vector search.
+197|Mở rộng ngữ cảnh theo graph
+198|Sử dụng cấu trúc đồ thị để lấy thêm thông tin liên quan.
+199|Sinh câu trả lời có trích dẫn
+200|Mỗi câu trả lời kèm citation đến điều khoản pháp luật cụ thể.
+201|Cache câu trả lời
+202|Sử dụng Redis để giảm thời gian phản hồi cho câu hỏi lặp lại.
+203|Lưu lịch sử hỏi đáp
+204|Lưu vào MySQL để người dùng xem lại
+205|Xác thực người dùng
+206|Đăng ký, đăng nhập qua Auth Service
+207|CƠ SỞ LÝ THUYẾT
+208|Mô hình RAG và GraphRAG
+209|Nguyên lý RAG (Retrieval-Augmented Generation)
+210|RAG là kỹ thuật khắc phục hạn chế của các mô hình ngôn ngữ lớn (LLM) bằng cách bổ sung dữ liệu ngoài. Quy trình gồm hai thành phần chính:
+211|Retriever (Bộ truy xuất): Tìm kiếm thông tin liên quan từ cơ sở dữ liệu dựa trên câu hỏi người dùng.
+212|Generator (Bộ sinh): LLM tổng hợp thông tin vừa tìm được để sinh câu trả lời chính xác, giúp giảm thiểu hiện tượng "ảo giác" (hallucination).
+213|Khái niệm KG-RAG (GraphRAG)
+214|KG-RAG là sự nâng cấp của RAG truyền thống. Thay vì truy xuất từ các đoạn văn bản rời rạc trong Vector Database phẳng, KG-RAG sử dụng đồ thị tri thức làm vùng truy xuất. KG-RAG cho phép hệ thống hiểu được mối liên hệ giữa các dữ liệu chứ không chỉ so sánh sự trùng lặp từ ngữ.
+215|Trong bài toán pháp luật dữ liệu pháp luật được lưu trong Neo4j theo cấu trúc pháp luật gồm các node và Chunk. Khi người dùng đặt câu hỏi, hệ thống có thể kết hợp nhiều cách truy xuất như tìm theo số điều luật, tìm theo từ khóa và tìm kiếm vector, sau đó mở rộng ngữ cảnh theo graph để lấy thêm các chunk liên quan trong cùng điều luật.
+216|Trong triển khai thực tế, đồ thị không chỉ biểu diễn cấu trúc Law, Part, Chapter, Section, Article, Clause và Point, mà còn mở rộng sang lớp ngữ nghĩa pháp lý như Crime, Rule, Condition, PenaltyFrame,Penalty, LegalConcept,AggravatingFactor,MitigatingFactor, SubjectRequirement, ObjectRequirement,ActRequirement,ConsequenceRequirement,QuantityThreshold,Exception, Reference, SubstanceAlias và ActionAlias. Cách thiết kế này giúp chatbot không chỉ tìm văn bản điều luật, mà còn có cơ sở để giải thích yếu tố cấu thành tội phạm, khung hình phạt và dữ kiện còn thiếu trong tình huống người dùng mô tả.
+217|Vector Search và Embedding
+218|Khái niệm embedding văn bản
+219|Embedding văn bản là kỹ thuật biểu diễn văn bản (từ, câu, đoạn văn) dưới dạng vector số trong không gian nhiều chiều. Mục tiêu là các văn bản có ngữ nghĩa tương tự sẽ có vector gần nhau trong không gian này.
+220|SaulAI sử dụng mô hình embedding paraphrase-multilingual-MiniLM-L12-v2. Khi build index, hệ thống sinh embedding cho từng Chunk, chuẩn hóa vector và tạo Neo4j vector index với similarity hàm là cosine.
+221|Tìm kiếm ngữ nghĩa bằng vector
+222|Tìm kiếm ngữ nghĩa (Semantic Search) là kỹ thuật tìm kiếm dựa trên độ tương đồng ngữ nghĩa giữa câu hỏi và tài liệu, thay vì chỉ dựa trên sự trùng khớp từ khóa.
+223|Quy trình tìm kiếm ngữ nghĩa:
+224|Giai đoạn Offline: các Chunk trong corpus pháp luật được chuyển thành vector embedding bằng mô hình sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2 và lưu vào Neo4j vector index.
+225|Giai đoạn Online: Khi người dùng gửi câu hỏi, hệ thống cũng chuyển câu hỏi thành vector bằng cùng mô hình embedding. Neo4j so sánh vector của câu hỏi với vector của các Chunk để tìm ra những nội dung có độ tương đồng cao nhất.
+226|Kết quả tìm kiếm ngữ nghĩa được kết hợp với article lookup và keyword search để tạo thành cơ chế hybrid retrieval. Sau khi các Chunk liên quan được tìm thấy, hệ thống tiếp tục mở rộng ngữ cảnh theo graph, ví dụ lấy thêm các chunk cùng thuộc một Điều luật, nhằm cung cấp đầy đủ căn cứ pháp luật cho LLM trước khi sinh câu trả lời.
+227|Hình 1. Minh họa tìm kiếm ngữ nghĩa
+228|Mô hình ngôn ngữ lớn
+229|Mô hình ngôn ngữ lớn (Large Language Model) là một loại mô hình trí tuệ nhân tạo thuộc lĩnh vực xử lý ngôn ngữ tự nhiên (Natural Language Processing), được huấn luyện trên khối lượng dữ liệu văn bản khổng lồ với mục tiêu hiểu và sinh ngôn ngữ tự nhiên.
+230|Kiến trúc nền tảng Transformer:
+231|LLM hiện đại sử dụng kiến trúc Transformer, được giới thiệu bởi  Ashish Vaswani và 7 tác giả khác trong bài báo "Attention Is All You Need" (2017). Transformer sử dụng cơ chế Self-Attention cho phép mô hình học được mối quan hệ giữa tất cả các từ trong câu, bất kể khoảng cách giúp mô hình hiểu ngữ cảnh tốt hơn so với các kiến trúc trước đó.
+232|Các LLM được sử dụng trong SaulAI:
+233|Gpt-5.5: model QA chính qua OpenAI-compatible API, đồng thời được dùng làm judge trong script đánh giá.
+234|Gemini-2.5-flash: model QA qua Gemini OpenAI-compatible endpoint, có thể được chọn trực tiếp hoặc dùng làm fallback trong một số trường hợp Gpt-5.5 hết quota/token.
+235|Ngoài ra, dự án còn kết hợp model  Word Embedding chuyên dụng cho tiếng Việt, được phát triển bởi Phòng nghiên cứu Mô hình nền tảng BKAI-HUST (Đại học Bách khoa Hà Nội). Mô hình này chuyển đổi các câu hoặc đoạn văn bản thành một không gian vector đậm đặc 768 chiều, phục vụ hiệu quả cho các tác vụ như tìm kiếm ngữ nghĩa (semantic search), gom cụm (clustering), hoặc làm thành phần cốt lõi trong hệ thống RAG (Retrieval-Augmented Generation) cho tiếng Việt.
+236|Việc lựa chọn model được chuẩn và chỉ chấp nhận các model nằm trong diện được hỗ trợ.
+237|Hình 2. Vai trò LLM trong pipeline RAG
+238|Đồ thị tri thức pháp luật
+239|Đồ thị tri thức là cách tổ chức dữ liệu dưới dạng node và relationship. Trong đó, node biểu diễn các thực thể, còn relationship biểu diễn mối quan hệ giữa các thực thể. Đối với bài toán pháp luật, đồ thị tri thức giúp mô hình hóa cấu trúc phân cấp của văn bản luật như luật, chương, điều, khoản và điểm.
+240|Neo4j là hệ quản trị cơ sở dữ liệu đồ thị, phù hợp để lưu trữ và truy vấn các dữ liệu có nhiều quan hệ. Neo4j sử dụng mô hình property graph, trong đó các node và relationship có thể chứa thuộc tính. Nhờ đó, hệ thống có thể truy vấn dữ liệu pháp luật theo quan hệ cấu trúc một cách linh hoạt
+241|Ngoài các node cấu trúc, hệ thống còn sử dụng node Chunk làm đơn vị nội dung phục vụ truy xuất trong pipeline RAG. Cách tổ chức này giúp hệ thống vừa tra cứu được vị trí pháp lý của thông tin, vừa hỗ trợ truy xuất ngữ nghĩa để sinh câu trả lời chính xác hơn.
+242|Hình 3. Minh họa đồ thị tri thức Neo4j
+243|Kết hợp KG-RAG cho bài toán pháp luật
+244|SaulAI áp dụng theo hướng Graph RAG, kết hợp tìm kiếm ngữ nghĩa với cấu trúc đồ thị tri thức trong Neo4j.
+245|Cơ chế truy xuất được thiết kế theo hướng hybrid retrieval, gồm ba nguồn tín hiệu chính:
+246|Article lookup: tìm trực tiếp nội dung khi câu hỏi nhắc đến điều, khoản hoặc điểm cụ thể.
+247|Keyword search: tìm kiếm theo từ khóa trên trường search text.
+248|Vector search: tìm kiếm ngữ nghĩa bằng Neo4j vector index qua embedding của các Chunk.
+249|Sau khi có kết quả từ truy xuất, hệ thống tiến hành hợp nhất điểm số, ưu tiên đa dạng theo điều luật và mở rộng ngữ cảnh bằng các Chunk cùng thuộc một điều luật, giúp hệ thống không chỉ tìm được đoạn văn bản gần nghĩa với câu hỏi, mà còn lấy thêm ngữ cảnh pháp lý liên quan để LLM sinh câu trả lời đầy đủ và có căn cứ hơn.\
+250|Ngoài ra, dựa
+251|Các tiêu chí đánh giá
+252|Bảng 3. Các metric đánh giá hệ thống
+253|Metric
+254|Ý nghĩa
+255|Faithfulness
+256|Đánh giá câu trả lời có được hỗ trợ bởi contexts truy xuất hay không; nếu contexts rỗng mà vẫn khẳng định pháp lý cụ thể thì điểm thấp.
+257|Hallucination
+258|Đánh giá mức độ suy diễn câu trả lời là sai lệch hoặc khẳng định vượt quá contexts; 0 là trả lời trung thực, 1 là sai lệch nghiêm trọng.
+259|Answer relevancy
+260|Đánh giá câu trả lời có đúng trọng tâm câu hỏi hay không.
+261|Context precision
+262|Đánh giá contexts truy xuất có liên quan trực tiếp đến câu hỏi / trả lời hay không; context rỗng thường là 0, trừ khi câu hỏi ngoài phạm vi và câu trả lời từ chối phù hợp.
+263|Wrong context
+264|Đánh giá mức độ contexts nhầm lẫn, không liên quan hoặc gây nhiễu; 0 là context đúng/liên quan, 1 là sai hoặc gây nhiễu nghiêm trọng.
+265|Safety compliance
+266|Đánh giá câu trả lời có tránh hướng dẫn hành vi sai trái, tự sinh nguồn không xác thực hoặc vượt quá dữ liệu hay không.
+267|Overall
+268|Điểm đánh giá tổng hợp do judge chấm từ các tiêu chí trên.
+269|Nền tảng phát triển Giao diện người dùng (Front-end)
+270|Next.js & React.js: Giao diện hệ thống Web UI của SaulAI được xây dựng dựa trên framework Next.js kết hợp cùng React. Sự kết hợp này mang lại khả năng xử lý linh hoạt thông qua các cơ chế Server-Side Rendering (SSR) và Client-Side Rendering (CSR), giúp tăng tốc độ phản hồi của giao diện chat trực tiếp. Cấu trúc component của React giúp tái sử dụng mã nguồn hiệu quả trong các giao diện phức tạp như hiển thị câu trả lời kèm trích dẫn pháp lý chi tiết từ đồ thị tri thức.
+271|TypeScript: Ngôn ngữ TypeScript được sử dụng xuyên suốt trong mã nguồn Front-end nhằm cung cấp hệ thống kiểu dữ liệu tĩnh (static typing). Công nghệ này giúp kiểm soát lỗi chặt chẽ trong quá trình gọi API và xử lý các payload dữ liệu phức tạp trả về từ Backend (bao gồm thông tin chunk_ids, law_id, category và contexts).
+272|Tailwind CSS: Để đảm bảo tính đồng nhất và tốc độ phát triển giao diện, hệ thống ứng dụng Tailwind CSS. Đây là một framework utility-first cho phép xây dựng các thành phần thiết kế trực quan một cách nhanh chóng, đáp ứng tốt hiển thị trên đa nền tảng (Responsive Design) và tối ưu hóa dung lượng khi triển khai ứng dụng.
+273|Hệ thống Ánh xạ Cơ sở dữ liệu (ORM)
+274|Prisma ORM: Khối ứng dụng sử dụng Prisma làm lớp trung gian (Object-Relational Mapping) để giao tiếp an toàn và hiệu quả với cơ sở dữ liệu quan hệ (MySQL). Prisma giúp định nghĩa các schema rõ ràng cho hệ thống quản lý người dùng, đồng thời tự động tạo ra các truy vấn an toàn (type-safe) để tích hợp liền mạch với môi trường TypeScript của toàn bộ dự án.
+275|TRIỂN KHAI HỆ THỐNG
+276|Kiến trúc tổng thể hệ thống
+277|Hình 4. Sơ đồ kiến trúc tổng thể hệ thống
+278|Đồ thị mô tả kiến trúc tổng thể của hệ thống hỏi đáp pháp luật dựa trên Graph RAG, trong :
+279|Người dùng tương tác thông qua Web UI, sau đó request được định tuyến qua Kong Gateway, auth-service và QnA-service.
+280|Lớp Graph RAG Runtime chịu trách nhiệm phân tích câu hỏi, truy xuất lai và sinh câu trả lời dựa trên ngữ cảnh đồ thị.
+281|Hệ thống sử dụng đồ thị tri thức pháp luật Neo4j kết hợp vector index để truy vấn quan hệ pháp lý và ngữ nghĩa văn bản.
+282|Redis được dùng cho cache, MySQL lưu thông tin xác thực, lịch sử hỏi đáp và dữ liệu liên quan.
+283|Phần Offline Build và Evaluation đảm nhiệm xây dựng dữ liệu đồ thị, tạo chunk, đánh giá chất lượng và cập nhật vào hệ thống runtime.
+284|Quy trình chunking, xử lý, truy xuất và lưu trữ dữ liệu
+285|Hình 5. Quy trình chunking dữ liệu pháp luật
+286|Mục tiêu của chunking là chia văn bản pháp luật thành các đoạn đủ nhỏ để tìm kiếm chính xác, nhưng vẫn giữ được ngữ cảnh pháp lý cần thiết. Chunk được chia dựa trên cấu trúc pháp lý của văn bản luật vì mỗi điều, khoản hoặc điểm đều mang ý nghĩa pháp lý riêng:
+287|Nếu một khoản có các điểm bên dưới, hệ thống sẽ tạo chunk ở cấp Point
+288|Nếu khoản không có điểm, khoản đó được xem là đơn vị nhỏ nhất và được tạo thành chunk ở cấp Clause.
+289|Nếu một điều luật không có khoản hoặc điểm, toàn bộ điều luật sẽ được tạo thành chunk ở cấp Article. Nếu điều luật có phần mở đầu riêng trước các khoản, hệ thống có thể tách phần này thành chunk riêng dạng Article preamble.
+290|Hình 6. Quy trình xử lý dữ liệu cho Graph RAG
+291|Đồ thị trình bày quy trình tiền xử lý và xây dựng dữ liệu phục vụ hệ thống Graph RAG, cụ thể:
+292|Dữ liệu pháp luật gốc được lọc theo phạm vi đề tài như Hình sự, Dân sự, Hôn nhân gia đình, An ninh mạng và Giáo dục.
+293|Dữ liệu sau khi lọc được chuẩn hóa thành cấu trúc JSON, biểu diễn theo các cấp Luật, Chương, Điều, Khoản và Điểm.
+294|Các dữ liệu có cấu trúc được import vào Neo4j để xây dựng đồ thị tri thức pháp luật.
+295|Nội dung văn bản được chia thành các chunk và sinh embedding phục vụ tìm kiếm ngữ nghĩa.
+296|Hình 7. Quy trình lưu trữ dữ liệu vào Neo4j
+297|Đồ thị mô tả cấu trúc tri thức pháp luật được biểu diễn dưới dạng đồ thị trong Neo4j với các thành phần sau:
+298|Các thực thể chính gồm Law, Chapter, Article, Clause, Point và Chunk, tương ứng với cấu trúc phân cấp của văn bản pháp luật (Luật, Chương, Điều, Khoản, Điểm).
+299|Các quan hệ như HAS_CHAPTER, HAS_ARTICLE, HAS_CLAUSE và HAS_POINT thể hiện mối liên kết logic giữa các cấp nội dung.
+300|Mỗi Article, Clause hoặc Point có thể liên kết với Chunk để lưu phần nội dung văn bản tương ứng.
+301|Embedding Model được sử dụng để sinh vector biểu diễn ngữ nghĩa cho các chunk văn bản.
+302|Các vector này được lưu vào Neo4j Vector Index nhằm hỗ trợ truy vấn tương đồng ngữ nghĩa khi người dùng đặt câu hỏi.
+303|Hình 8. Quy trình truy xuất dữ liệu
+304|Đồ thị thể hiện luồng xử lý khi người dùng gửi câu hỏi pháp luật vào hệ thống theo các bước sau:
+305|Trước tiên, Flask QnA API kiểm tra Redis Cache để tái sử dụng câu trả lời nếu đã tồn tại.
+306|Nếu không có cache, hệ thống chuyển câu hỏi sang Graph RAG để phân tích intent, law_id và các từ khóa liên quan.
+307|Quá trình truy xuất được thực hiện theo hướng hybrid retrieval, gồm article lookup, keyword search và vector search.
+308|Các kết quả truy xuất được hợp nhất điểm số, chọn top-k chunk và mở rộng ngữ cảnh bằng Knowledge Graph.
+309|LLM sinh câu trả lời dựa trên context, kết quả được lưu vào MySQL, cache lại trong Redis và trả về cho người dùng kèm citation.
+310|Sơ đồ tuần tự hệ thống
+311|Hình 9. Sơ đồ tuần tự tổng quan xử lý câu hỏi
+312|Đây là sơ đồ mô tả runtime của một request hỏi đáp pháp luật từ Web UI đến qna-service, qua lớp cache Redis, gọi GraphLawPipeline.ask để suy luận câu trả lời, sau đó lưu lịch sử hỏi đáp vào MySQL trước khi trả response về client.
+313|Khi người dùng gửi câu hỏi, WebUI sẽ gửi một HTTP POST request đến API đính kèm:
+314|Nội dung câu hỏi.
+315|Mã định danh cuộc trò chuyện.
+316|Mô hình LLM được sử dụng.
+317|Token xác thực người dùng (JWT).
+318|Thành phần QnA-service nhận request và thực hiện các bước tiền xử lý:
+319|decode JWT: Giải mã token để xác thực người dùng.
+320|normalize model: Chuẩn hóa tên model AI
+321|check chat_id: Kiểm tra hoặc tạo phiên chat tương ứng.
+322|Sau khi xử lý ban đầu, QnA-service truy vấn Redis cache bằng khóa: graph-rag-v4:model:question. Mục đích là kiểm tra xem câu hỏi này đã từng được hỏi chưa, nếu đã có kết quả thì trả về ngay để giảm thời gian xử lý:
+323|Nếu Redis tìm thấy dữ liệu, kết quả đã lưu được trả về ngay cho QnA-service, không cần gọi pipeline RAG.
+324|Nếu Redis không tìm thấy dữ liệu, QnA-service sẽ gửi request đến GraphLawPipeline.ask để áp dụng RAG truy xuất dữ liệu liên quan và sinh câu trả lời, trích dẫn và ngữ cảnh. QnA-service sẽ lưu dữ liệu vào cơ sở dữ liệu MySQL QnA và lưu kết quả vào Redis cùng với thời gian hết hạn (TTL).
+325|Cuối cùng QnA-service trả HTTP 200 cho Web UI và WebUI hiển thị kết quả cho người dùng.
+326|Hình 10. Sơ đồ tuần tự định tuyến trong GraphLawPipeline.ask
+327|Đây là sơ đồ mô tả lớp điều phối trung tâm trong runtime RAG khi Redis không tìm thấy dữ liệu, QnA-service gửi request gọi hàm GraphLawPipeline.ask(question, model). Hàm ask này không trực tiếp trả lời theo một đường cố định, mà phân tích ý định câu hỏi trước rồi định tuyến sang nhánh phù hợp.
+328|Trước khi thực hiện RAG truy xuất dữ liệu, GraphLawPipeline.ask gọi LLM provider qua hàm analyze_query(question), thông qua hành động này yêu cầu LLM trả về kết quả phân tích câu hỏi gồm các trường:
+329|category (NON_LEGAL, GRAPH_LOOKUP, CONSULTATION)
+330|law_id
+331|search_queries
+332|extracted_facts
+333|Đây là bước router bằng ngôn ngữ tự nhiên, biến câu hỏi tự do thành tín hiệu có cấu trúc để điều hướng pipeline.
+334|Khi category = “GRAPH_LOOKUP”: Pipeline xác định luật đích qua available_laws() hoặc detect_law() (tương tác với dữ liệu nằm trong Neo4j). Tham khảo chi tiết ở sơ đồ tuần tự nhánh GRAPH_LOOKUP.
+335|Khi category = “CONSULTATION”, tham khảo chi tiết ở sơ đồ tuần tự nhánh CONSULTATION.
+336|Khi category = “NON_LEGAL”: Pipeline gọi `generate_direct_answer(question)` tới LLM provider, sau đó nhận và đóng gói kết quả. Cách làm này không gọi flow retrieval Neo4j chuyên sâu, phù hợp với các câu hỏi ngoài phạm vi pháp luật hoặc không cần grounding và graph.
+337|Sau khi hoàn tất một trong ba nhánh, GraphLawPipeline.ask trả payload kết quả về QnA-service.
+338|Hình 11. Sơ đồ tuần tự nhánh CONSULTATION
+339|Đây là sơ đồ mô tả cách pipeline xử lý các câu hỏi tư vấn pháp lý dạng mở, khi hệ thống cần tổng hợp nhiều ngữ cảnh thay vì tra cứu trực tiếp một Điều cụ thể.
+340|Trước hết hệ thống khởi tạo phạm vi luật liên quan bằng cách xác định danh sách luật liên quan qua related_law_ids(). Việc này giúp giảm việc tìm kiếm lan rộng trên toàn bộ graph cũng như tăng xác suất lấy đúng context theo chủ đề pháp lý người dùng hỏi.
+341|Với mỗi luật liên quan, pipeline chạy một chu trình retrieval đầy đủ:
+342|Gọi  hàm ensure_chunk_index_for_law(law_id) trên Neo4j để bảo đảm index chunk đã sẵn sàng.
+343|Gọi embedding model: encode(question + search_queries).
+344|Nhận vector `embedding` của truy vấn.
+345|Chạy retrieve_chunks() theo chiến lược hybrid: article number, keyword, vector similarity.
+346|Nhận ranked chunk_ids chứa các chunk được xếp hạng dựa trên điểm số.
+347|Gọi hàm expand_graph_context(chunk_ids) để mở rộng ngữ cảnh theo article.
+348|Nhận contexts theo article cho luật đang xét.
+349|Ý nghĩa kỹ thuật của loop:
+350|Kết hợp đa tín hiệu retrieval giúp giảm thiên lệch của từng phương pháp riêng lẻ.
+351|Mở rộng context theo article giúp câu trả lời có nền tảng pháp lý liền mạch hơn.
+352|Chạy theo từng `law_id` hỗ trợ tốt bài toán đa luật (multi-law consultation).
+353|Sau khi hoàn tất các vòng lặp retrieval: pipeline gọi LLM provider với compose_answer(question, analysis, contexts) để yêu cầu LLM trả về câu trả lời dựa trên tập context đã truy xuất và mở rộng. Do đó, câu trả lời mang tính tư vấn có cấu trúc, bám vào ngữ cảnh pháp luật đã lấy từ Neo4j trong khi chất lượng của nó phụ thuộc trực tiếp vào độ liên quan của contexts và bước hợp nhất retrieval.
+354|Ý nghĩa vận hành của nhánh `CONSULTATION`
+355|Phù hợp để xử lý các tình huống cần suy luận thay vì tra cứu trực tiếp (câu hỏi mở).
+356|Kết hợp article/keyword/vector để tăng recall nhưng vẫn giữ relevance.
+357|LLM chỉ tổng hợp trên dữ liệu đã retrieve, giảm nguy cơ trả lời suy diễn (hallucination).
+358|Hình 12. Sơ đồ tuần tự nhánh GRAPH_LOOKUP
+359|Đây là sơ đồ mô tả cách pipeline trả lời các câu hỏi thiên về tra cứu trực tiếp trên graph thay vì tư vấn tình huống mở.
+360|Khi câu hỏi có pattern Điều/ Khoản/ Điểm cụ thể, pipeline ưu tiên đường đi chính xác theo article:
+361|Gọi hàm article_number_search_chunks() để tìm các chunk gắn với Điều được nhắc trong câu hỏi.
+362|Nhận danh sách chunk_ids từ Neo4j.
+363|Gọi expand_graph_context(chunk_ids) để mở rộng context cùng article/cấu trúc liên quan.
+364|Nhận về article contexts đã chuẩn hóa.
+365|Gửi context sang LLM provider để trả lời dựa trên context Neo4j.
+366|Nhận answer và hoàn tất nhánh.
+367|Đặc trưng của nhánh này:
+368|Ưu tiên độ chính xác theo số Điều nêu tường minh.
+369|Giảm nhiễu retrieval vì phạm vi tìm kiếm đã được neo bằng `article_number`.
+370|Phù hợp câu hỏi kiểu “Điều X quy định gì?”, “Khoản Y Điều X nói gì?”.
+371|Với các câu hỏi cần dữ liệu có cấu trúc (đếm, liệt kê, thống kê, quan hệ node), pipeline đi theo đường direct Cypher:
+372|Gọi generate_direct_cypher() để nhờ LLM sinh câu Cypher (read-only).
+373|Nhận câu truy vấn Cypher đã ràng buộc an toàn đọc.
+374|Chạy Cypher trên Neo4j (run Cypher).
+375|Nhận rows / metadata từ kết quả truy vấn.
+376|Đưa JSON kết quả sang LLM để diễn giải thành ngôn ngữ tự nhiên.
+377|Nhận answer cuối cùng cho người dùng.
+378|Đặc trưng của nhánh này:
+379|Mạnh ở câu hỏi “cấu trúc graph nói gì” thay vì trích nguyên văn điều luật.
+380|Tính đúng phụ thuộc vào chất lượng Cypher sinh ra và guardrail read-only.
+381|Có khả năng trả lời tốt dạng “liệt kê”, “có bao nhiêu”, “quan hệ giữa các thực thể”.
+382|Nếu câu hỏi không khớp hai dạng trên, pipeline gọi hàm fallback consultation_result() để quay về luồng consultation/retrieval tổng quát để tránh ép bài toán vào direct lookup sai ngữ cảnh.
+383|Hình 13. Sơ đồ tuần tự lưu kết quả và trả response
+384|Đây là sơ đồ mô tả phần hậu xử lý sau khi GraphLawPipeline đã sinh xong kết quả: pipeline lưu lịch sử vào MySQL, lưu cache vào Redis và trả payload HTTP về Web UI.
+385|GraphLawPipeline trả payload kết quả về cho QnA-service, payload kết quả sẽ nhất quán theo các trường sau đây:
+386|response: phản hồi từ LLM.
+387|citation: danh sách trích dẫn.
+388|contexts: ngữ cảnh.
+389|chunk_ids: mã định danh chunk.
+390|law_id: mã định danh luật.
+391|category: nhánh.
+392|Sau đó, QnA-service sẽ tạo bản ghi câu hỏi trong MySQL nhằm đảm bảo mỗi câu trả lời có khóa định danh truy vết. Đồng thời liên kết dữ liệu theo phiên chat để lưu lịch sử hội thoại. Nếu có citation trong kết quả, dữ liệu citation được ánh xạ thành các dòng Reference trong MySQL.
+393|Tiếp theo, QnA-service sẽ ghi vào cache để tối ưu latency cho truy vấn lặp lại cùng mô hình và câu hỏi, câu trả lời với TTL là 86400 giây tương đương với 1 ngày.
+394|Sau khi hoàn tất lưu DB/cache, QnA-service trả kết quả cho Web UI đủ dữ liệu để hiển thị câu trả lời và nguồn tham chiếu ngay trong một response.
+395|Quản lý mã nguồn và Môi trường triển khai (Deployment)
+396|Nhằm đảm bảo hệ thống hoạt động ổn định và hỗ trợ liên tục cập nhật các tính năng hỏi đáp pháp luật mới, quy trình triển khai của SaulAI được thiết kế tự động hóa một phần và phân tách theo từng dịch vụ:
+397|Quản lý phiên bản và Chất lượng mã: Toàn bộ mã nguồn hệ thống được quản lý tập trung và phân nhánh trên GitHub. Quá trình phát triển ứng dụng tích hợp công cụ kiểm tra ESLint nhằm tự động phân tích tĩnh mã nguồn, đảm bảo mã được viết tuân thủ các quy chuẩn (coding standards) nghiêm ngặt trước khi hợp nhất và triển khai thực tế.
+398|Triển khai Front-end (Web UI): Giao diện ứng dụng Next.js được triển khai trực tiếp lên nền tảng đám mây Vercel. Nền tảng này hỗ trợ tích hợp CI/CD trực tiếp với GitHub Repository, cho phép tự động đóng gói (build) và phân phối ứng dụng ngay khi có bản cập nhật trên nhánh chính.
+399|Triển khai Back-end và CSDL: Các dịch vụ xử lý (QnA-service, Auth-service) cùng cơ sở dữ liệu (MySQL, Redis, Neo4j) được ảo hóa thông qua cấu hình Docker và Docker Compose nhằm đồng bộ hóa giữa môi trường phát triển và thực tế. Quá trình triển khai production được thực hiện linh hoạt trên nền tảng đám mây Railway và hạ tầng máy chủ ảo cung cấp FastAPI Cloud, giúp hệ thống chịu tải tốt và đảm bảo kết nối xuyên suốt với mặt Front-end.
+400|CHƯƠNG TRÌNH VÀ KẾT QUẢ
+401|Tổng quan dữ liệu
+402|Thu thập và lưu trữ dữ liệu
+403|Hình 14. Thống kê cấu trúc dữ liệu pháp luật trong hệ thống
+404|Pháp điển ban đầu có 45 chủ đề, nhóm đã lọc còn 5 chủ đề chính là:
+405|Hình sự.
+406|Dân sự.
+407|Hôn nhân và gia đình.
+408|An ninh mạng.
+409|Giáo dục.
+410|Tổng số Chương là 88, tổng số Điều là 3304, tổng số Khoản là 8277 và tổng số Điểm 6667. Sau đó được phân ra thành 14333 chunk.
+411|Ở Bộ luật hình sự 2025, nhóm cũng tập trung vào các tội trạng phổ biến, nhiều tình tiết , điều kiện phạm tội như:
+412|Liên quan đến Ma tuý
+413|Liên quan đến tội Cố ý gây thương tích
+414|Liên quan đến Giết người
+415|Bảng 4. Ứng dụng các cơ sở dữ liệu trong chatbot
+416|Thành phần
+417|Vai trò
+418|MySQL / qna-mysql
+419|Lưu lịch sử hỏi đáp và citation của Q&A service
+420|MySQL / auth-mysql
+421|Lưu dữ liệu xác thực người dùng cho auth-service
+422|Redis
+423|Cache câu trả lời để tăng tốc truy vấn lặp lại
+424|Neo4j
+425|Lưu tri thức pháp luật, graph và vector index phục vụ RAG
+426|Hình 15.Minh họa Auth-service (1)
+427|Hình 16. Minh họa auth-service(2).
+428|Hình 17. Minh họa QnA-service (1).
+429|Hình 18. Minh họa QnA-service (2)
+430|Hình 19. Minh họa Redis
+431|Hình 20. Minh họa cấu hình Kong
+432|Xây dựng đồ thị tri thức
+433|Hình 21. Tổng quan quy trình xây dựng đồ thị tri thức
+434|Quy trình xây dựng dữ liệu pháp luật gồm 4 giai đoạn. Dữ liệu được lấy từ corpus hoặc crawler, sau đó được chuẩn hóa thành cấu trúc pháp luật gồm luật, chương, điều, khoản, điểm sau đó được import vào Neo4j để lưu trữ dưới dạng cơ sở dữ liệu đồ thị. Cuối cùng, hệ thống sinh embedding và tạo index nhằm phục vụ truy xuất ngữ nghĩa trong pipeline Graph RAG.
+435|Sau khi thực hiện việc trích xuất các label từ các văn bản pháp luật bao gồm: luật, nghị định, nghị quyết, thông tư, nhóm thu được kết quả sau:
+436|Tổng số nodes: 32674 thuộc về 38 loại label.
+437|Tổng số relationship: 32669 thuộc về 998 loại relationship.
+438|Hình 22. Tổng quan cơ sở tri thức được lưu trong Neo4j
+439|Giao diện của chương trình
+440|Hình 23. Giao diện đăng nhập của chương trình
+441|Hình 24. Giao diện đăng ký của chương trình
+442|Hình 25. Minh họa xác thực tài khoản google
+443|Hình 26. Giao diện chat của chương trình
+444|Hình 27. Minh hoạ câu hỏi pháp lý giả định
+445|Hình 28. Minh hoạ câu hỏi pháp luật có ngưỡng định lượng
+446|Hình 29. Minh hoạ câu hỏi tư vấn dân sự, hợp đồng
+447|Hình 30. Minh hoạ tình huống người chưa thành niên phạm tội và chính sách xử lý hình sự
+448|Nhận xét chung và Đánh giá
+449|Script hiện tại không import package ragas; nó dùng bộ chấm nội bộ theo các tiêu chí RAGAs-style. Dữ liệu đưa cho judge chỉ gồm question, answer và contexts; các cột metadata không được dùng để chấm.
+450|Các metric:
+451|faithfulness: câu trả lời có được hỗ trợ bởi context không.
+452|hallucination: mức độ câu trả lời bịa hoặc khẳng định vượt quá context.
+453|answer_relevancy: câu trả lời có đúng trọng tâm câu hỏi không.
+454|context_precision: context truy xuất có liên quan trực tiếp không.
+455|wrong_context: mức độ context sai lệch hoặc gây nhiễu.
+456|safety_compliance: mức độ tuân thủ an toàn, không hướng dẫn hành vi sai trái, không bịa nguồn.
+457|overall: điểm tổng hợp.
+458|Bộ test hiện có 270 câu. Phân bố theo nhóm đánh giá trong eval_summary.json:
+459|Bảng 5. Phân bố dữ liệu bộ kiểm thử
+460|Nhóm test
+461|Số case
+462|topic_law
+463|150
+464|multi_law
+465|25
+466|noisy_query
+467|30
+468|missing_conflict
+469|25
+470|out_of_scope_legal
+471|20
+472|injection_bad
+473|20
+474|Trong nhóm topic_law, mỗi chủ đề chính có 30 case.
+475|Các nhóm bổ sung gồm câu hỏi liên luật, câu hỏi thiếu dữ kiện hoặc mâu thuẫn, câu hỏi ngoài phạm vi 5 luật, câu hỏi nhiễu như viết tắt/sai dấu/không nêu tên luật, và prompt injection/yêu cầu xấu.
+476|Kết quả tổng hợp hiện tại:
+477|Hình 31. Dashboard kết quả đánh giá
+478|topic_law có điểm overall 0.8083, cao hơn trung bình toàn bộ. Đây là nhóm câu hỏi nằm đúng trong 5 chủ đề được index nên retrieval có nhiều khả năng lấy được context liên quan.
+479|injection_bad có overall 0.8425, safety compliance 0.9450. Kết quả này cho thấy prompt từ chối hoặc giữ ràng buộc context hoạt động tốt với nhóm injection/yêu cầu xấu trong bộ test hiện tại.
+480|out_of_scope_legal có overall 0.5800 và context precision 0.1100. Nhóm này thấp vì câu hỏi nằm ngoài 5 chủ đề, graph không có đủ dữ liệu trực tiếp; hệ thống có xu hướng thiếu context hoặc context không đủ liên quan.
+481|multi_law có overall 0.6320, thấp hơn nhóm đơn luật. Nguyên nhân phù hợp với thiết kế retrieval hiện tại: câu hỏi liên luật cần phối hợp nhiều law_id, nên rủi ro thiếu context hoặc lấy context lệch cao hơn.
+482|wrong_context trung bình 0.3557 và context_precision trung bình 0.5944 cho thấy điểm yếu chính hiện tại nằm ở chất lượng chọn context, không phải ở khả năng sinh câu trả lời khi context đã đúng. Điều này cũng khớp với việc faithfulness đạt 0.8455 và answer_relevancy đạt 0.8793.
+483|KẾT LUẬN VÀ HƯỚNG PHÁT TRIỂN
+484|Nhận xét và kết luận
+485|Dự án đã xây dựng được hệ thống SaulAI hỏi đáp pháp luật tiếng Việt dựa trên Graph RAG. Hệ thống sử dụng dữ liệu từ Bộ pháp điển Việt Nam, tập trung vào 5 chủ đề chính bao gồm Hình sự, Dân sự, Hôn nhân và gia đình, An ninh mạng và Giáo dục.
+486|Dữ liệu pháp luật được tổ chức dưới dạng graph trong Neo4j với các node và chunk , đồng thời các chunk được embedding và lưu vào vector index để phục vụ truy xuất ngữ nghĩa.
+487|Về triển khai, hệ thống đã xây dựng được các thành phần chính gồm Backend, AI Service, Neo4j, MySQL và Redis :
+488|Backend tiếp nhận request và điều phối API
+489|AI Service thực hiện pipeline Graph RAG
+490|Neo4j lưu trữ tri thức pháp luật và vector index
+491|MySQL lưu lịch sử hỏi đáp
+492|Redis dùng để cache kết quả truy vấn.
+493|Hệ thống hỗ trợ truy vấn bằng các model như GPT-5.5 và Gemini 2.5 Flash.
+494|Về chức năng, hệ thống có thể phân loại câu hỏi pháp lý, chọn luật liên quan, truy xuất context bằng kết hợp article lookup, keyword search và vector search, mở rộng context theo graph và sinh câu trả lời dựa trên dữ liệu truy xuất.
+495|Ngoài ra, dự án đã xây dựng bộ đánh giá gồm 270 câu hỏi với nhiều nhóm kiểm thử khác nhau. Kết quả đánh giá cho thấy hệ thống đạt điểm tốt ở các tiêu chí như faithfulness, answer relevancy và safety compliance, chứng minh khả năng trả lời bám sát context và hạn chế sinh nội dung không an toàn.
+496|Hướng phát triển
+497|Mở rộng và cập nhật dữ liệu pháp luật là hướng quan trọng nhất, hệ thống nên được bổ sung thêm nhiều lĩnh vực pháp luật và có cơ chế cập nhật định kỳ từ các nguồn chính thống.
+498|Cải thiện hybrid retrieval, metadata filtering, graph traversal và reranking để cải thiện chất lượng truy xuất context và hiệu quả của mô hình RAG.
+499|Bổ sung khả năng xử lý truy vấn nhiễu trước khi thực hiện truy xuất, giúp chuẩn hóa câu hỏi, nhận diện ý định chính và tăng khả năng tìm đúng điều luật liên quan.
+500|Giao diện tối ưu hiển thị rõ ràng câu trả lời và căn cứ pháp lý để dễ kiểm chứng. Hiệu năng cần được tối ưu bằng cache và lựa chọn model phù hợp.
+501|Tăng cường bảo mật để bảo vệ API key, dữ liệu người dùng và ngăn chặn các truy vấn độc hại như prompt injection.
+502|TÀI LIỆU THAM KHẢO
+503|[1]
+504|K. S. Shunmugathai, "GraphRAG and Agentic Architecture: Practical Experimentation with Neo4j and NeoConverse," 04 12 2025. [Online]. Available: https://neo4j.com/blog/developer/graphrag-and-agentic-architecture-with-neoconverse/.
+505|[2]
+506|F.-S. Design, "Feature Sliced Design Document," [Online]. Available: https://feature-sliced.design/docs/get-started/overview. [Accessed 06 12 2025].
+507|[3]
+508|D. T. Hien, "VIBLO," 22 4 2019. [Online]. Available: https://viblo.asia/p/clean-architecture-Ljy5VMYzlra. [Accessed 06 12 2025].

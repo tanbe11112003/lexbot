@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.neo4j import neo4j_db
-from app.routers import articles, chat, health, search
+from app.routers import agentic_rag, articles, chat, health, search
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -48,6 +48,7 @@ app.include_router(health.router)
 app.include_router(articles.router)
 app.include_router(search.router)
 app.include_router(chat.router)
+app.include_router(agentic_rag.router)
 
 if STATIC_DIR.exists():
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

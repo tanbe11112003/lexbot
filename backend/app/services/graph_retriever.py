@@ -104,3 +104,63 @@ def search_articles_by_title_terms(terms: list[str], limit: int = 10) -> list[di
         """,
         {"terms": terms, "limit": limit},
     )
+
+
+def find_articles_by_keyword(keyword: str, limit: int = 10) -> list[dict]:
+    return neo4j_db.try_query(
+        """
+        MATCH (a:Article)
+        WHERE toLower(a.title) CONTAINS toLower($keyword)
+           OR toLower(coalesce(a.full_text, "")) CONTAINS toLower($keyword)
+        OPTIONAL MATCH (a)-[:DEFINES_CRIME]->(c:Crime)
+        RETURN a.article_code AS article_code, a.title AS title, c.name AS crime_name,
+               1.0 AS score, "keyword_graph" AS source, [$keyword] AS matched_terms
+        ORDER BY a.article_number
+        LIMIT $limit
+        """,
+        {"keyword": keyword, "limit": limit},
+    )
+
+
+def find_crime_by_act(act: str, limit: int = 10) -> list[dict]:
+    return neo4j_db.try_query(
+        """
+        MATCH (a:Article)-[:DEFINES_CRIME]->(c:Crime)
+        WHERE toLower(c.name) CONTAINS toLower($act)
+           OR toLower(a.title) CONTAINS toLower($act)
+        RETURN a.article_code AS article_code, a.title AS title, c.name AS crime_name,
+               1.4 AS score, "act_graph" AS source, [$act] AS matched_terms
+        ORDER BY a.article_number
+        LIMIT $limit
+        """,
+        {"act": act, "limit": limit},
+    )
+
+
+def find_drug_articles(limit: int = 20) -> list[dict]:
+    return find_articles_by_keyword("ma túy", limit)
+
+
+def find_article_with_penalty_frames(article_number: str) -> dict | None:
+    return fetch_context_by_article(str(article_number))
+
+
+def find_conditions_and_penalty_frames(article_number: str) -> dict | None:
+    return fetch_context_by_article(str(article_number))
+
+
+def find_quantity_thresholds(substance: str, limit: int = 20) -> list[dict]:
+    return neo4j_db.try_query(
+        """
+        MATCH (qt:QuantityThreshold)
+        WHERE toLower(coalesce(qt.substance, qt.substance_name, qt.text, qt.description, "")) CONTAINS toLower($substance)
+        RETURN qt AS quantity_threshold
+        LIMIT $limit
+        """,
+        {"substance": substance, "limit": limit},
+    )
+
+
+def fetch_by_article(article_number: str | int) -> list[dict]:
+    ctx = fetch_context_by_article(str(article_number))
+    return [ctx] if ctx else []
