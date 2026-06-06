@@ -59,6 +59,8 @@ class Citation(BaseModel):
     rule_id: str | None = None
     ten_toi: str | None = None
     snippet: str | None = None
+    title: str | None = None
+    content: str | None = None
 
 
 # ---------------------------- API request/response --------------------------

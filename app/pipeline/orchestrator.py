@@ -341,9 +341,54 @@ def _render_final_answer(case: CaseAnalysis) -> str:
     return "\n".join(lines).strip()
 
 
-def _to_citations(case: CaseAnalysis) -> list[Citation]:
+def _citation_title(article: int, clause: int | None, name: str | None) -> str:
+    title = f"Điều {article}"
+    if name:
+        title += f". {name}"
+    if clause is not None:
+        title += f" - Khoản {clause}"
+    return title
+
+
+def _citation_content(chunk: RetrievedChunk | None, fallback: CitationOutput) -> str:
+    if chunk is None:
+        return fallback.snippet or ""
+
+    lines: list[str] = ["Luật: Hình sự"]
+    if chunk.chuong:
+        lines.append(f"Chương: {chunk.chuong}")
+    if chunk.article is not None:
+        article_line = f"Điều {chunk.article}"
+        if chunk.dieu_name:
+            article_line += f". {chunk.dieu_name}"
+        lines.append(article_line)
+    if chunk.clause is not None:
+        lines.append(f"Khoản {chunk.clause}: {chunk.text}")
+    elif chunk.text:
+        lines.append(chunk.text)
+    return "\n".join(line for line in lines if line)
+
+
+def _chunk_lookup_key(
+    article: int | None,
+    clause: int | None,
+    rule_id: str | None,
+) -> tuple[int | None, int | None, str | None]:
+    return (article, clause, rule_id)
+
+
+def _to_citations(case: CaseAnalysis, chunks: list[RetrievedChunk] | None = None) -> list[Citation]:
     cites: list[Citation] = []
     seen: set[tuple[int, int | None, str | None]] = set()
+    chunk_by_exact: dict[tuple[int | None, int | None, str | None], RetrievedChunk] = {}
+    chunk_by_article_clause: dict[tuple[int | None, int | None], RetrievedChunk] = {}
+    chunk_by_article: dict[int | None, RetrievedChunk] = {}
+
+    for chunk in chunks or []:
+        chunk_by_exact.setdefault(_chunk_lookup_key(chunk.article, chunk.clause, chunk.rule_id), chunk)
+        chunk_by_article_clause.setdefault((chunk.article, chunk.clause), chunk)
+        chunk_by_article.setdefault(chunk.article, chunk)
+
     for actor in case.actors:
         for td in actor.toi_danh:
             for c in td.citations:
@@ -351,6 +396,12 @@ def _to_citations(case: CaseAnalysis) -> list[Citation]:
                 if key in seen:
                     continue
                 seen.add(key)
+                chunk = (
+                    chunk_by_exact.get(_chunk_lookup_key(c.article, c.clause, c.rule_id))
+                    or chunk_by_article_clause.get((c.article, c.clause))
+                    or chunk_by_article.get(c.article)
+                )
+                title = _citation_title(c.article, c.clause, c.ten_toi or td.ten_toi)
                 cites.append(
                     Citation(
                         article=c.article,
@@ -358,6 +409,8 @@ def _to_citations(case: CaseAnalysis) -> list[Citation]:
                         rule_id=c.rule_id,
                         ten_toi=c.ten_toi or td.ten_toi,
                         snippet=c.snippet,
+                        title=title,
+                        content=_citation_content(chunk, c),
                     )
                 )
     return cites
@@ -642,7 +695,7 @@ def run_pipeline(
         debug.warnings.extend(warnings)
 
     final_answer = _render_final_answer(case)
-    citations = _to_citations(case)
+    citations = _to_citations(case, reranked)
 
     return ChatResponse(
         question=question,
@@ -731,7 +784,7 @@ def run_pipeline_fast(
         debug.timings_ms = timings
 
     final_answer = _plain_fast_chunks_answer(chunks_for_response)
-    citations = _to_citations(case)
+    citations = _to_citations(case, chunks_for_response)
 
     return ChatResponse(
         question=question,
@@ -910,7 +963,7 @@ async def run_pipeline_stream(
     )
 
     final_answer = _render_final_answer(case)
-    citations = _to_citations(case)
+    citations = _to_citations(case, reranked)
 
     yield StageEvent(
         stage="final",

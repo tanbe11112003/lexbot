@@ -343,6 +343,8 @@ def _build_citations_from_articles(parts: Iterable[DieuSpan]) -> list[Citation]:
                 rule_id=None,
                 ten_toi=title_guess[:200] or f"Điều {ds.article}",
                 snippet=snip[:400],
+                title=f"Điều {ds.article}. {title_guess[:200]}" if title_guess else f"Điều {ds.article}",
+                content=snip,
             )
         )
     return cites
