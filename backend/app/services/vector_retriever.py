@@ -16,11 +16,32 @@ def _embed(text: str) -> list[float] | None:
     try:
         from sentence_transformers import SentenceTransformer
         if _model is None:
-            _model = SentenceTransformer(settings.embedding_model)
-        return _model.encode(text, normalize_embeddings=True).tolist()
+            _model = SentenceTransformer(settings.embedding_model, device=settings.embedding_device)
+        return _model.encode(
+            text,
+            batch_size=settings.embedding_batch_size,
+            normalize_embeddings=True,
+        ).tolist()
     except Exception as exc:
         logger.warning("Vector embedding skipped: %s", exc)
         return None
+
+
+def warmup_embedding_model() -> bool:
+    if not settings.use_vector_search:
+        logger.info("Vector warmup skipped because USE_VECTOR_SEARCH=false")
+        return False
+    emb = _embed("Bộ luật Hình sự")
+    warmed = emb is not None
+    if warmed:
+        if len(emb) != settings.embedding_dim:
+            logger.warning(
+                "Embedding dimension mismatch: model returned %s, EMBEDDING_DIM=%s",
+                len(emb),
+                settings.embedding_dim,
+            )
+        logger.info("Vector embedding model warmed up: %s", settings.embedding_model)
+    return warmed
 
 
 def vector_search(query: str, limit: int = 10) -> list[dict]:

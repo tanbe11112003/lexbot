@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -12,18 +13,44 @@ from app.core.config import settings
 from app.core.logging import configure_logging
 from app.core.neo4j import neo4j_db
 from app.routers import agentic_rag, articles, chat, health, search
+from app.services.reranker import warmup_reranker_model
+from app.services.vector_retriever import warmup_embedding_model
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
+logger = logging.getLogger(__name__)
+
+
+def warmup_backend() -> dict[str, bool]:
+    status = {
+        "neo4j": False,
+        "indexes": False,
+        "embedding_model": False,
+        "reranker_model": False,
+    }
+
+    try:
+        status["neo4j"] = neo4j_db.verify()
+        logger.info("Neo4j connection warmed up")
+    except Exception as exc:
+        logger.warning("Neo4j warmup failed: %s", exc)
+
+    try:
+        neo4j_db.ensure_indexes()
+        status["indexes"] = True
+        logger.info("Neo4j indexes ensured")
+    except Exception as exc:
+        logger.warning("Neo4j index warmup failed: %s", exc)
+
+    status["embedding_model"] = warmup_embedding_model()
+    status["reranker_model"] = warmup_reranker_model()
+    logger.info("Backend warmup status: %s", status)
+    return status
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     configure_logging()
-    try:
-        neo4j_db.ensure_indexes()
-    except Exception:
-        # Startup must not mutate beyond indexes and must explain failures at endpoints.
-        pass
+    app.state.warmup_status = warmup_backend()
     yield
     neo4j_db.close()
 

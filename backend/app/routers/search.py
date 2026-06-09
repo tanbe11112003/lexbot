@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from app.models.schemas import NormalizeRequest, SearchRequest, SearchResponse
+from app.models.schemas import FinalAnswer, NormalizeRequest, SearchCandidate, SearchRequest, SearchResponse
 from app.services.answer_generator import generate_answer
 from app.services.context_builder import citations_from_contexts
 from app.services.graph_retriever import fetch_contexts
@@ -20,6 +20,50 @@ from app.services.validator import validate_answer
 router = APIRouter(tags=["search"])
 
 
+def _article_content_from_context(ctx: dict) -> str:
+    article = ctx.get("article") or {}
+    if article.get("full_text"):
+        return str(article.get("full_text"))
+
+    parts: list[str] = []
+    for clause in ctx.get("clauses") or []:
+        clause_no = clause.get("clause_no")
+        text = clause.get("text")
+        if text:
+            parts.append(f"Khoản {clause_no}: {text}" if clause_no else str(text))
+    for point in ctx.get("points") or []:
+        point_label = point.get("point_label") or point.get("point")
+        text = point.get("text")
+        if text:
+            parts.append(f"Điểm {point_label}: {text}" if point_label else str(text))
+    return "\n".join(parts)
+
+
+def _enrich_candidates(candidates: list[dict], contexts: list[dict]) -> list[SearchCandidate]:
+    ctx_by_code = {
+        str((ctx.get("article") or {}).get("article_code")): ctx
+        for ctx in contexts
+        if (ctx.get("article") or {}).get("article_code")
+    }
+    enriched: list[SearchCandidate] = []
+    for candidate in candidates:
+        data = dict(candidate)
+        code = str(data.get("article_code") or "")
+        ctx = ctx_by_code.get(code)
+        article = (ctx.get("article") or {}) if ctx else {}
+        article_title = str(article.get("title") or data.get("article_title") or data.get("title") or "") or None
+        data["article_code"] = code or None
+        data["article_title"] = article_title
+        data["article_content"] = _article_content_from_context(ctx) if ctx else data.get("article_content")
+        data["matched_terms"] = data.get("matched_terms") or []
+        data["sources"] = data.get("sources") or []
+        data["score"] = float(data.get("score") or 0.0)
+        if article_title:
+            data["title"] = article_title
+        enriched.append(SearchCandidate(**data))
+    return enriched
+
+
 @router.post("/search", response_model=SearchResponse)
 def search(req: SearchRequest) -> SearchResponse:
     if req.search_type == "fulltext":
@@ -35,8 +79,8 @@ def search(req: SearchRequest) -> SearchResponse:
         debug = {"mode": "fulltext", "warnings": warnings} if req.include_debug else None
         return SearchResponse(
             query=req.query,
-            candidates=candidates,
-            final_answer=answer,
+            candidates=_enrich_candidates(candidates, contexts),
+            final_answer=FinalAnswer(content=answer, warnings=warnings),
             missing_facts=missing,
             citations=citations_from_contexts(contexts),
             debug=debug,
@@ -86,8 +130,8 @@ def search(req: SearchRequest) -> SearchResponse:
         debug["facts"] = facts.model_dump()
     return SearchResponse(
         query=req.query,
-        candidates=candidates,
-        final_answer=answer,
+        candidates=_enrich_candidates(candidates, contexts),
+        final_answer=FinalAnswer(content=answer, warnings=warnings),
         missing_facts=missing,
         citations=citations_from_contexts(contexts),
         debug=debug if req.include_debug else None,

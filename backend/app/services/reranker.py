@@ -14,6 +14,23 @@ def _candidate_text(c: dict) -> str:
     return " ".join(str(p) for p in parts if p)
 
 
+def warmup_reranker_model() -> bool:
+    global _reranker
+    if not settings.use_reranker:
+        logger.info("Reranker warmup skipped because USE_RERANKER=false")
+        return False
+    try:
+        from sentence_transformers import CrossEncoder
+        if _reranker is None:
+            _reranker = CrossEncoder(settings.reranker_model)
+        _reranker.predict([["Bộ luật Hình sự", "Điều luật hình sự"]])
+        logger.info("Reranker model warmed up: %s", settings.reranker_model)
+        return True
+    except Exception as exc:
+        logger.warning("Reranker warmup skipped: %s", exc)
+        return False
+
+
 def rerank(query: str, candidates: list[dict], top_k: int) -> list[dict]:
     global _reranker
     if not settings.use_reranker or not candidates:

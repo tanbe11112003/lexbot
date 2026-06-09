@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from urllib.parse import urlparse
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.core.config import settings
 from app.core.neo4j import neo4j_db
@@ -18,12 +18,13 @@ def _neo4j_uri_hint() -> str:
 
 
 @router.get("/health")
-def health() -> dict:
+def health(request: Request) -> dict:
     labels = ["Article", "Crime", "Clause", "Point", "Condition", "Rule", "PenaltyFrame", "Penalty"]
     base = {
         "service": "blhs-graph-v2",
         "neo4j_uri_hint": _neo4j_uri_hint(),
         "neo4j_database": settings.neo4j_database,
+        "warmup_status": getattr(request.app.state, "warmup_status", {}),
     }
     try:
         counts = neo4j_db.count_labels(labels)

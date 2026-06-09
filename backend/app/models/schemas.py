@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -12,10 +12,30 @@ class SearchRequest(BaseModel):
     include_debug: bool = False
 
 
+class SearchCandidate(BaseModel):
+    article_code: str | None = None
+    title: str | None = None
+    article_title: str | None = None
+    article_content: str | None = None
+    crime_name: str | None = None
+    score: float = 0.0
+    source: str | None = None
+    sources: list[str] = Field(default_factory=list)
+    matched_terms: list[str] = Field(default_factory=list)
+    reason: str | None = None
+
+
+class FinalAnswer(BaseModel):
+    content: str
+    format: Literal["text", "markdown"] = "text"
+    warnings: list[str] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class SearchResponse(BaseModel):
     query: str
-    candidates: list[dict]
-    final_answer: str | None = None
+    candidates: list[SearchCandidate]
+    final_answer: FinalAnswer | None = None
     missing_facts: list[str] = Field(default_factory=list)
     citations: list[dict] = Field(default_factory=list)
     debug: dict | None = None

@@ -10,6 +10,25 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 load_dotenv()
 
 
+def _env_bool(*names: str, default: bool = False) -> bool:
+    for name in names:
+        value = os.getenv(name)
+        if value is not None:
+            return value.strip().lower() in {"1", "true", "yes", "on"}
+    return default
+
+
+def _env_int(*names: str, default: int) -> int:
+    for name in names:
+        value = os.getenv(name)
+        if value:
+            try:
+                return int(value)
+            except ValueError:
+                return default
+    return default
+
+
 class Settings(BaseSettings):
     neo4j_uri: str = "bolt://localhost:7687"
     neo4j_user: str = "neo4j"
@@ -25,6 +44,9 @@ class Settings(BaseSettings):
     use_hyde: bool = False
 
     embedding_model: str = "bkai-foundation-models/vietnamese-bi-encoder"
+    embedding_device: str = "cpu"
+    embedding_batch_size: int = 32
+    embedding_dim: int = 768
     reranker_model: str = "BAAI/bge-reranker-v2-m3"
 
     app_host: str = "0.0.0.0"
@@ -45,11 +67,14 @@ def get_settings() -> Settings:
         neo4j_database=os.getenv("NEO4J_DATABASE", "neo4j"),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
-        use_llm_fact_extractor=os.getenv("USE_LLM_FACT_EXTRACTOR", "false").lower() == "true",
-        use_vector_search=os.getenv("USE_VECTOR_SEARCH", "false").lower() == "true",
-        use_reranker=os.getenv("USE_RERANKER", "false").lower() == "true",
-        use_hyde=os.getenv("USE_HYDE", "false").lower() == "true",
+        use_llm_fact_extractor=_env_bool("USE_LLM_FACT_EXTRACTOR", "ENABLE_LLM_FACT_EXTRACTOR"),
+        use_vector_search=_env_bool("USE_VECTOR_SEARCH", "ENABLE_VECTOR_SEARCH"),
+        use_reranker=_env_bool("USE_RERANKER", "ENABLE_RERANKER"),
+        use_hyde=_env_bool("USE_HYDE", "ENABLE_HYDE"),
         embedding_model=os.getenv("EMBEDDING_MODEL", "bkai-foundation-models/vietnamese-bi-encoder"),
+        embedding_device=os.getenv("EMBEDDING_DEVICE", "cpu"),
+        embedding_batch_size=_env_int("EMBEDDING_BATCH_SIZE", default=32),
+        embedding_dim=_env_int("EMBEDDING_DIM", default=768),
         reranker_model=os.getenv("RERANKER_MODEL", "BAAI/bge-reranker-v2-m3"),
         app_host=os.getenv("APP_HOST", "0.0.0.0"),
         app_port=int(os.getenv("APP_PORT", "8000")),
