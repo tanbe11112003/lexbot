@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from app.models.conversation import ClarificationAnswer
 
 
 class SearchRequest(BaseModel):
@@ -49,11 +51,21 @@ class AnalyzeScenarioRequest(BaseModel):
 
 
 class LegalChatRequest(BaseModel):
-    message: str = Field(min_length=1)
+    model_config = ConfigDict(extra="forbid")
+
     case_id: str | None = None
+    case_version: int | None = Field(default=None, ge=0)
+    message: str = ""
+    answers: list[ClarificationAnswer] = Field(default_factory=list)
     top_k: int = Field(default=8, ge=1, le=30)
     include_debug: bool = False
     answer_style: Literal["auto", "balanced", "conversational", "brief", "educational", "structured"] = "auto"
+
+    @model_validator(mode="after")
+    def require_message_or_answers(self) -> "LegalChatRequest":
+        if not (self.message or "").strip() and not self.answers:
+            raise ValueError("message hoặc answers phải có ít nhất một giá trị")
+        return self
 
 
 class NormalizeRequest(BaseModel):

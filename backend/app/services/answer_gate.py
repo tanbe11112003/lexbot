@@ -15,7 +15,18 @@ def _is_drug_case(facts: ExtractedFacts, scenario: str) -> bool:
 
 
 def _has_forensic(facts: ExtractedFacts) -> bool:
-    return any("giám định" in item or "dương tính" in item for item in facts.evidence)
+    return any("giám định" in item for item in facts.evidence) or any(
+        str(exhibit.forensic_status.value if hasattr(exhibit.forensic_status, "value") else exhibit.forensic_status) == "forensic_confirmed"
+        for exhibit in facts.exhibits
+    )
+
+
+def _has_confirmed_exhibit_substance(facts: ExtractedFacts) -> bool:
+    return any(exhibit.confirmed_substance and exhibit.confirmed_substance != "not_narcotic" for exhibit in facts.exhibits)
+
+
+def _has_net_mass(facts: ExtractedFacts) -> bool:
+    return any((quantity.unit or "").lower() in {"g", "gam", "kg", "mg"} and quantity.value is not None for quantity in facts.quantities)
 
 
 def _has_role_info(facts: ExtractedFacts) -> bool:
@@ -32,10 +43,10 @@ def _has_purpose(facts: ExtractedFacts) -> bool:
 def _drug_core_ready(facts: ExtractedFacts) -> bool:
     action_norms = {normalize_text(action) for action in facts.actions}
     has_action = bool(action_norms & {normalize_text(action) for action in DRUG_ACTIONS})
-    has_exhibit_or_substitute = bool(facts.exhibits) or (_has_forensic(facts) and bool(facts.quantities))
+    has_exhibit_or_substitute = bool(facts.exhibits) or (_has_forensic(facts) and _has_net_mass(facts))
     return all([
-        facts.substances,
-        facts.quantities,
+        _has_confirmed_exhibit_substance(facts),
+        _has_net_mass(facts),
         has_exhibit_or_substitute,
         _has_forensic(facts),
         has_action,
@@ -46,6 +57,8 @@ def _drug_core_ready(facts: ExtractedFacts) -> bool:
 
 def _critical_from_text(item: str, facts: ExtractedFacts, scenario: str) -> bool:
     norm = normalize_text(item)
+    if "tang vat va giam dinh" in norm or "hoat chat" in norm:
+        return True
     if "ma tuy" in norm:
         if any(term in norm for term in ["giam dinh", "khoi luong", "ham luong", "so luong", "tang vat", "muc dich"]):
             return True
@@ -62,15 +75,36 @@ def _critical_from_text(item: str, facts: ExtractedFacts, scenario: str) -> bool
     return False
 
 
+def _missing_key_label(text: str, idx: int) -> tuple[str, str]:
+    norm = normalize_text(text)
+    if "vien nen" in norm or "vien" in norm:
+        return "exhibits.tablets.forensic_substance", "Hoạt chất của viên nén"
+    if "goi bot" in norm or "nghi ketamine" in norm or "ketamine" in norm:
+        return "exhibits.powder.forensic_substance", "Hoạt chất của gói bột"
+    if "duong tinh" in norm:
+        return "evidence.toxicology_result", "Kết quả xét nghiệm cơ thể người"
+    if "khoi luong" in norm or "dinh luong" in norm or "ham luong" in norm:
+        return "exhibits.drug_net_mass", "Khối lượng tịnh tang vật"
+    if "tang vat" in norm:
+        return "exhibits.status", "Tình trạng tang vật"
+    if "loi" in norm or "muc dich" in norm:
+        return "actors.mental_state", "Nhận thức và mục đích"
+    if "vai tro" in norm or "dong pham" in norm:
+        return "actors.roles", "Vai trò từng người"
+    return f"missing_{idx + 1}", text.split(":", 1)[0]
+
+
 def to_missing_items(missing: list[str], clarifying_questions: list[str], facts: ExtractedFacts, scenario: str) -> list[MissingFactItem]:
     items: list[MissingFactItem] = []
     for idx, text in enumerate(missing):
         norm = normalize_text(text)
-        domain = "drug" if "ma tuy" in norm else "forestry" if ("lam san" in norm or "go" in norm) else "general"
+        tokens = set(norm.split())
+        domain = "drug" if ("ma tuy" in norm or "tang vat va giam dinh" in norm) else "forestry" if ("lam san" in norm or "go" in tokens) else "general"
         question = clarifying_questions[idx] if idx < len(clarifying_questions) else None
+        key, label = _missing_key_label(text, idx)
         items.append(MissingFactItem(
-            key=f"missing_{idx + 1}",
-            label=text.split(":", 1)[0],
+            key=key,
+            label=label,
             description=text,
             critical=_critical_from_text(text, facts, scenario),
             domain=domain,

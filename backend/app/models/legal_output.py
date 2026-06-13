@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
@@ -49,6 +49,12 @@ class LegalReasoningItem(BaseModel):
     title: str
     crime_name: str | None = None
     classification: str
+    finding_status: Literal[
+        "possible_hypothesis",
+        "provisional_finding",
+        "insufficient_evidence",
+        "supported_conclusion",
+    ] = "possible_hypothesis"
     why_relevant: str
     matched_elements: list[MatchedElement] = Field(default_factory=list)
     missing_elements: list[str] = Field(default_factory=list)

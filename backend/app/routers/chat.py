@@ -26,6 +26,8 @@ def legal_chat(req: LegalChatRequest) -> LegalChatResponse:
     return handle_legal_chat(
         message=req.message,
         case_id=req.case_id,
+        case_version=req.case_version,
+        answers=req.answers,
         top_k=req.top_k,
         include_debug=req.include_debug,
         answer_style=req.answer_style,

@@ -27,6 +27,14 @@ def reason_over_contexts(contexts: list[dict], facts: ExtractedFacts, normalized
         crime = ctx.get("crime") or {}
         score, matched = score_context(ctx, facts, normalized, missing)
         classification = classify_context(ctx)
+        if missing and classification == "crime_candidate":
+            finding_status = "insufficient_evidence"
+        elif missing:
+            finding_status = "possible_hypothesis"
+        elif score >= 0.72 and classification == "crime_candidate":
+            finding_status = "supported_conclusion"
+        else:
+            finding_status = "provisional_finding"
         warnings: list[str] = []
         if str(article.get("article_code")) in {"51", "52"}:
             warnings.append("Điều 51/52 là quy định về tình tiết, không phải tội danh chính.")
@@ -35,6 +43,7 @@ def reason_over_contexts(contexts: list[dict], facts: ExtractedFacts, normalized
             title=str(article.get("title")),
             crime_name=crime.get("name"),
             classification=classification,
+            finding_status=finding_status,
             why_relevant="Khớp dữ kiện/tín hiệu truy vấn từ tình huống và graph Neo4j.",
             matched_elements=matched,
             missing_elements=missing,

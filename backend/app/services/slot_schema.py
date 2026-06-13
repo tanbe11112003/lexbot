@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 
 @dataclass(frozen=True)
@@ -11,6 +12,44 @@ class SlotDefinition:
     required: bool
     critical: bool
     suggested_question: str
+
+
+@dataclass(frozen=True)
+class OptionTemplate:
+    id: str
+    label: str
+    requires_value: bool = False
+    value_type: Literal["text", "number", "date"] | None = None
+    placeholder: str | None = None
+
+
+@dataclass(frozen=True)
+class StructuredQuestionTemplate:
+    id: str
+    fact_path: str
+    group: str
+    text: str
+    input_type: Literal[
+        "single_choice",
+        "multi_choice",
+        "number",
+        "text",
+        "date",
+        "boolean",
+        "actor_matrix",
+    ]
+    reason: str
+    required: bool = False
+    critical: bool = False
+    allow_free_text: bool = False
+    unit: str | None = None
+    min_value: float | None = None
+    max_value: float | None = None
+    affected_articles: tuple[str, ...] = ()
+    options: tuple[OptionTemplate, ...] = ()
+    legal_impact: float = 0.5
+    uncertainty: float = 0.5
+    information_gain: float = 0.5
 
 
 DRUG_SLOTS: list[SlotDefinition] = [
@@ -51,3 +90,44 @@ DOMAIN_SLOTS: dict[str, list[SlotDefinition]] = {
     "age": AGE_SLOTS,
     "forestry": FORESTRY_SLOTS,
 }
+
+FORENSIC_SUBSTANCE_OPTIONS: tuple[OptionTemplate, ...] = (
+    OptionTemplate("mdma", "MDMA"),
+    OptionTemplate("methamphetamine", "Methamphetamine"),
+    OptionTemplate("ketamine", "Ketamine"),
+    OptionTemplate("other", "Chất khác", requires_value=True, value_type="text", placeholder="Nhập tên hoạt chất theo kết luận giám định"),
+    OptionTemplate("not_narcotic", "Không phải chất ma túy"),
+    OptionTemplate("no_forensic_report", "Chưa có kết luận giám định"),
+    OptionTemplate("unknown", "Không biết"),
+)
+
+ELECTRONIC_EVIDENCE_OPTIONS: tuple[OptionTemplate, ...] = (
+    OptionTemplate("messages", "Tin nhắn"),
+    OptionTemplate("bank_transfer", "Chuyển khoản"),
+    OptionTemplate("calls", "Cuộc gọi"),
+    OptionTemplate("camera", "Camera"),
+    OptionTemplate("none", "Không có"),
+    OptionTemplate("unknown", "Không rõ"),
+)
+
+STRUCTURED_DRUG_QUESTION_GROUPS: tuple[str, ...] = (
+    "incident_time",
+    "forensic_substance",
+    "forensic_status",
+    "drug_net_mass",
+    "tablet_count",
+    "money_source",
+    "purchase_actor",
+    "delivery_actor",
+    "recipient_actor",
+    "profit_or_benefit",
+    "actor_knowledge",
+    "actor_intent",
+    "location_preparation",
+    "tool_preparation",
+    "drug_distribution",
+    "group_coordination",
+    "toxicology_result",
+    "rehabilitation_or_management_status",
+    "electronic_evidence",
+)

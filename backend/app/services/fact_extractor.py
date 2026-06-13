@@ -7,7 +7,7 @@ from functools import lru_cache
 from typing import Any
 
 from app.core.config import settings
-from app.models.facts import Actor, ExhibitFact, ExtractedFacts, Quantity, SubstanceFact
+from app.models.facts import Actor, EvidenceSource, ExhibitFact, ExhibitStatus, ExtractedFacts, ForensicStatus, Quantity, SubstanceFact
 from app.prompts.fact_extraction_prompt import FACT_EXTRACTION_SYSTEM, FACT_EXTRACTION_USER
 from app.utils.text import dedupe_keep_order, normalize_text
 
@@ -52,11 +52,42 @@ def _parse_float(raw: str) -> float | None:
         return None
 
 
+_WORD_NUMBERS = {
+    "một": 1,
+    "mot": 1,
+    "hai": 2,
+    "ba": 3,
+    "bốn": 4,
+    "bon": 4,
+    "năm": 5,
+    "nam": 5,
+    "sáu": 6,
+    "sau": 6,
+    "bảy": 7,
+    "bay": 7,
+    "tám": 8,
+    "tam": 8,
+    "chín": 9,
+    "chin": 9,
+    "mười": 10,
+    "muoi": 10,
+}
+
+
+def _parse_quantity_value(raw: str) -> float | None:
+    value = _parse_float(raw)
+    if value is not None:
+        return value
+    normalized = normalize_text(raw)
+    return float(_WORD_NUMBERS[normalized]) if normalized in _WORD_NUMBERS else None
+
+
 _ACTOR_STOPWORDS = {
     "Bộ", "Điều", "Khoản", "Tội", "Khi", "Nếu", "Tình", "Người", "Các", "Theo",
     "Trong", "Hiện", "Căn", "Tuy", "Do", "Vì", "Với", "Ca", "Nam", "Nữ",
-    "Tương", "Những", "Long", "Sơn", "Ngọc", "Minh", "Nhật", "Tết", "Có",
+    "Tương", "Những", "Sơn", "Ngọc", "Minh", "Nhật", "Tết", "Có",
 }
+_SUBSTANCE_NAME_KEYS = {normalize_text(value) for value in [*SUBSTANCE_ALIASES.keys(), *SUBSTANCE_ALIASES.values(), "ma túy tổng hợp"]}
 _TITLE_PREFIX_RE = re.compile(r"^(?:ca\s+sĩ|nam\s+ca\s+sĩ|nữ\s+ca\s+sĩ|ông|bà|anh|chị|bị\s+can|bị\s+cáo)\s+", re.I)
 
 
@@ -74,6 +105,8 @@ def _is_likely_actor_name(name: str) -> bool:
 def _add_actor(actors: list[Actor], seen: set[str], name: str, age: int | None = None) -> None:
     name = _clean_actor_name(name)
     if not name or name in _ACTOR_STOPWORDS or name.upper() in {"BLHS", "MDMA"}:
+        return
+    if normalize_text(name) in _SUBSTANCE_NAME_KEYS:
         return
     if not _is_likely_actor_name(name):
         return
@@ -151,13 +184,13 @@ def _extract_actors(text: str) -> list[Actor]:
 
 def _extract_quantities(text: str) -> list[Quantity]:
     patterns = [
-        r"(\d+(?:[\.,]\d+)?)\s*(kg|g|gam|viên|gói|m3|m³|mét khối)",
+        r"(\d+(?:[\.,]\d+)?|một|mot|hai|ba|bốn|bon|năm|nam|sáu|sau|bảy|bay|tám|tam|chín|chin|mười|muoi)\s*(mét khối|gói|viên|gam|kg|m3|m³|g)",
         r"(\d+(?:[\.,]\d+)?)\s*(triệu|tỷ)(?:\s*đồng)?",
     ]
     quantities: list[Quantity] = []
     for pattern in patterns:
         for m in re.finditer(pattern, text, flags=re.I):
-            value = _parse_float(m.group(1))
+            value = _parse_quantity_value(m.group(1))
             unit = m.group(2).lower()
             if unit == "tỷ" and value is not None:
                 value *= 1_000_000_000
@@ -172,15 +205,92 @@ def _extract_quantities(text: str) -> list[Quantity]:
 def _extract_exhibits(text: str, quantities: list[Quantity]) -> list[ExhibitFact]:
     exhibits: list[ExhibitFact] = []
     seen: set[tuple[str, str]] = set()
+
+    def add_exhibit(
+        *,
+        status: ExhibitStatus,
+        description: str,
+        form: str | None = None,
+        suspected_substance: str | None = None,
+        forensic_status: ForensicStatus = ForensicStatus.unknown,
+        quantity: Quantity | None = None,
+        evidence_source: EvidenceSource = EvidenceSource.user_statement,
+        confidence: float = 0.55,
+    ) -> None:
+        source = re.sub(r"\s+", " ", description).strip()
+        key = (status.value, source.lower())
+        if key in seen:
+            return
+        seen.add(key)
+        exhibits.append(ExhibitFact(
+            status=status,
+            description=source,
+            form=form,
+            suspected_substance=suspected_substance,
+            forensic_status=forensic_status,
+            quantity=quantity,
+            source_text=source,
+            evidence_source=evidence_source,
+            confidence=confidence,
+        ))
+
+    default_source = EvidenceSource.police_record if re.search(r"(thu\s+giữ|thu\s+được|phát\s+hiện|bắt\s+quả\s+tang)", text, flags=re.I) else EvidenceSource.user_statement
+    number_unit = r"(\d+(?:[\.,]\d+)?|một|mot|hai|ba|bốn|bon|năm|nam|sáu|sau|bảy|bay|tám|tam|chín|chin|mười|muoi)\s*"
+
+    for match in re.finditer(rf"{number_unit}gói[^.;,]{{0,60}}", text, flags=re.I):
+        source = re.split(rf"\s+và\s+{number_unit}viên", match.group(0).strip(), maxsplit=1, flags=re.I)[0].strip()
+        norm_source = normalize_text(source)
+        suspected = "ketamine" if "ketamin" in norm_source or "ketamine" in norm_source else None
+        quantity = Quantity(value=_parse_quantity_value(match.group(1)), unit="gói", raw_text=f"{match.group(1)} gói", object="powder")
+        add_exhibit(
+            status=ExhibitStatus.suspected if "nghi" in norm_source else ExhibitStatus.seized if default_source == EvidenceSource.police_record else ExhibitStatus.mentioned,
+            description=source,
+            form="powder",
+            suspected_substance=suspected,
+            forensic_status=ForensicStatus.suspected if "nghi" in norm_source or suspected else ForensicStatus.mentioned,
+            quantity=quantity,
+            evidence_source=default_source,
+            confidence=0.65 if default_source == EvidenceSource.police_record else 0.55,
+        )
+
+    for match in re.finditer(rf"{number_unit}viên[^.;,]{{0,70}}", text, flags=re.I):
+        source = match.group(0).strip()
+        norm_source = normalize_text(source)
+        suspected = None
+        if "thuoc lac" in norm_source or "mdma" in norm_source:
+            suspected = "MDMA"
+        elif "ma tuy tong hop" in norm_source:
+            suspected = "ma túy tổng hợp"
+        quantity = Quantity(value=_parse_quantity_value(match.group(1)), unit="viên", raw_text=f"{match.group(1)} viên", object="tablets")
+        add_exhibit(
+            status=ExhibitStatus.seized if default_source == EvidenceSource.police_record else ExhibitStatus.suspected if suspected else ExhibitStatus.mentioned,
+            description=source,
+            form="tablets",
+            suspected_substance=suspected,
+            forensic_status=ForensicStatus.suspected if suspected else ForensicStatus.mentioned,
+            quantity=quantity,
+            evidence_source=default_source,
+            confidence=0.65 if default_source == EvidenceSource.police_record else 0.55,
+        )
+
     for status, pattern in EXHIBIT_PATTERNS:
         for match in re.finditer(pattern, text, flags=re.I):
+            if exhibits and status == "seized":
+                continue
             source = re.sub(r"\s+", " ", match.group(0)).strip()
             key = (status, source.lower())
             if key in seen:
                 continue
             seen.add(key)
             quantity = quantities[0] if quantities and status in {"seized", "mentioned"} else None
-            exhibits.append(ExhibitFact(status=status, description=source, quantity=quantity, source_text=source))
+            exhibits.append(ExhibitFact(
+                status=ExhibitStatus(status),
+                description=source,
+                quantity=quantity,
+                source_text=source,
+                evidence_source=default_source,
+                confidence=0.6 if status == "seized" else 0.5,
+            ))
     return exhibits
 
 
@@ -201,8 +311,6 @@ def _regex_extract(text: str) -> ExtractedFacts:
     facts.quantities = _extract_quantities(text)
     facts.exhibits = _extract_exhibits(text, facts.quantities)
     facts.actions = [term for term in ACTION_TERMS if normalize_text(term) in norm]
-    if "dat phong" in norm and "su dung" in norm and ("ma tuy" in norm or "ketamin" in norm or "ketamine" in norm):
-        facts.actions.append("tổ chức sử dụng")
     facts.consequences = [term for term in CONSEQUENCE_TERMS if normalize_text(term) in norm]
     facts.location = [term for term in LOCATION_TERMS if normalize_text(term) in norm]
     facts.mitigating_signals = [term for term in MITIGATING_TERMS if normalize_text(term) in norm]
@@ -212,6 +320,8 @@ def _regex_extract(text: str) -> ExtractedFacts:
     facts.intent = [term for term in ["mục đích", "hưởng lợi", "cho bạn", "để bán", "để sử dụng", "để long sử dụng"] if normalize_text(term) in norm]
     facts.mental_state = [term for term in ["cố ý", "vô ý", "biết", "không biết"] if normalize_text(term) in norm]
     facts.evidence = [term for term in ["giám định", "kết luận giám định", "dương tính", "camera", "lời khai"] if normalize_text(term) in norm]
+    if "duong tinh" in norm:
+        facts.evidence.append("xét nghiệm dương tính")
     if "khong con tang vat" in norm or any(exhibit.status == "consumed" for exhibit in facts.exhibits):
         facts.evidence.append("không còn tang vật")
         facts.unknowns.append("Không còn tang vật: cần hồ sơ xét nghiệm/giám định và chứng cứ khác để chứng minh chất ma túy, nguồn cung, hành vi.")
@@ -226,7 +336,8 @@ def _regex_extract(text: str) -> ExtractedFacts:
             matched = alias_norm in norm
         if matched:
             quantity = _quantity_near_alias(text, alias, facts.quantities[0] if facts.quantities else None)
-            facts.substances.append(SubstanceFact(name=name, alias=alias, quantity=quantity, confidence=0.9))
+            confidence = 0.55 if re.search(rf"nghi\s+{re.escape(alias)}", lowered, flags=re.I) else 0.9
+            facts.substances.append(SubstanceFact(name=name, alias=alias, quantity=quantity, confidence=confidence))
     facts.objects = [s.name for s in facts.substances]
     tokens = set(norm.split())
     if "lam san" in norm or "rung" in tokens or "go" in tokens:

@@ -10,14 +10,26 @@ def detect_missing_facts(facts: ExtractedFacts, scenario: str) -> list[str]:
     norm = normalize_text(scenario)
     missing: list[str] = []
     if facts.substances or "ma tuy" in norm:
-        exhibit_statuses = {exhibit.status for exhibit in facts.exhibits}
+        exhibit_statuses = {str(exhibit.status.value if hasattr(exhibit.status, "value") else exhibit.status) for exhibit in facts.exhibits}
+        has_forensic_exhibit = any(
+            str(exhibit.forensic_status.value if hasattr(exhibit.forensic_status, "value") else exhibit.forensic_status) == "forensic_confirmed"
+            for exhibit in facts.exhibits
+        ) or any("giám định" in e for e in facts.evidence)
+        has_net_mass = any((q.unit or "").lower() in {"g", "gam", "kg", "mg"} for q in facts.quantities)
         if not exhibit_statuses:
             missing.append("Tang vật: chưa rõ còn bị thu giữ, đã bị tiêu thụ/sử dụng hết, hay không thu giữ được.")
-        if not any("giám định" in e or "dương tính" in e for e in facts.evidence):
-            missing.append("Ma túy: thiếu kết luận giám định về loại chất.")
-        if not facts.quantities and not (exhibit_statuses & {"consumed", "not_seized"}):
-            missing.append("Ma túy: thiếu khối lượng/hàm lượng hoặc số lượng để xác định khoản.")
-        elif not facts.quantities:
+        if not has_forensic_exhibit:
+            if any("dương tính" in e for e in facts.evidence):
+                missing.append("Ma túy: xét nghiệm dương tính chỉ là kết quả trên cơ thể người, chưa thay thế kết luận giám định tang vật.")
+            missing.append("Ma túy: thiếu kết luận giám định về loại chất của tang vật.")
+        for exhibit in facts.exhibits:
+            if exhibit.id == "powder" and not exhibit.confirmed_substance and str(exhibit.forensic_status.value if hasattr(exhibit.forensic_status, "value") else exhibit.forensic_status) not in {"denied", "not_available", "unknown"}:
+                missing.append("Tang vật và giám định: thiếu hoạt chất của gói bột/gói nghi Ketamine theo kết luận giám định.")
+            if exhibit.id == "tablets" and not exhibit.confirmed_substance and str(exhibit.forensic_status.value if hasattr(exhibit.forensic_status, "value") else exhibit.forensic_status) not in {"denied", "not_available", "unknown"}:
+                missing.append("Tang vật và giám định: thiếu hoạt chất của viên nén theo kết luận giám định.")
+        if not has_net_mass and not (exhibit_statuses & {"consumed", "not_seized"}):
+            missing.append("Ma túy: thiếu khối lượng tịnh/hàm lượng bằng gam để xác định khoản.")
+        elif not has_net_mass:
             missing.append("Ma túy: không có định lượng do không còn/không thu giữ được tang vật; cần chứng cứ thay thế để đánh giá ở mức có dấu hiệu.")
         role_gaps: list[str] = []
         if not any(x in norm for x in ["tu doi tuong ten", "cung cap", "nguoi ban"]):

@@ -101,6 +101,98 @@ Gửi lượt bổ sung:
 curl -X POST http://127.0.0.1:8000/chat/legal -H "Content-Type: application/json" -d "{\"case_id\":\"<case_id từ lượt trước>\",\"message\":\"Có kết luận giám định, ketamine 1g, MDMA 0.5g, A đặt phòng và nhờ người mua, B cùng sử dụng.\"}"
 ```
 
+### Structured clarification contract
+
+`/chat/legal` hiện hỗ trợ câu hỏi làm rõ có cấu trúc để frontend dựng form radio, checkbox, số, ngày, text hoặc actor matrix. `clarifying_questions: list[str]` vẫn được giữ để tương thích client cũ; client mới nên đọc `clarification.questions`.
+
+Lượt đầu:
+
+```json
+{
+  "message": "Long nhờ Tân đặt phòng, thu giữ một gói nghi Ketamine và hai viên ma túy tổng hợp.",
+  "top_k": 8,
+  "include_debug": false
+}
+```
+
+Phản hồi rút gọn:
+
+```json
+{
+  "case_id": "uuid",
+  "case_version": 1,
+  "status": "collecting_facts",
+  "missing_facts": [
+    {
+      "key": "exhibits.tablets.forensic_substance",
+      "label": "Hoạt chất của viên nén",
+      "critical": true,
+      "description": "Tang vật và giám định: thiếu hoạt chất của viên nén theo kết luận giám định."
+    }
+  ],
+  "clarification": {
+    "type": "form",
+    "question_set_id": "qs-uuid",
+    "can_submit_partial": true,
+    "questions": [
+      {
+        "id": "q_tablets_forensic_substance",
+        "fact_path": "exhibits.tablets.forensic_substance",
+        "group": "Tang vật và giám định",
+        "text": "Kết luận giám định xác định hoạt chất trong hai viên nén là chất nào?",
+        "input_type": "single_choice",
+        "required": true,
+        "critical": true,
+        "options": [
+          {"id": "mdma", "label": "MDMA"},
+          {"id": "methamphetamine", "label": "Methamphetamine"},
+          {"id": "ketamine", "label": "Ketamine"},
+          {"id": "other", "label": "Chất khác", "requires_value": true, "value_type": "text"},
+          {"id": "not_narcotic", "label": "Không phải chất ma túy"},
+          {"id": "no_forensic_report", "label": "Chưa có kết luận giám định"},
+          {"id": "unknown", "label": "Không biết"}
+        ]
+      }
+    ]
+  },
+  "clarifying_questions": [
+    "Kết luận giám định xác định hoạt chất trong hai viên nén là chất nào?"
+  ],
+  "final_answer": "Chưa đủ dữ kiện để kết luận cuối cùng."
+}
+```
+
+Gửi option, không cần nhập message mới:
+
+```json
+{
+  "case_id": "uuid",
+  "case_version": 1,
+  "message": "",
+  "answers": [
+    {
+      "question_id": "q_tablets_forensic_substance",
+      "selected_option_ids": ["mdma"],
+      "value": null,
+      "free_text": null
+    }
+  ]
+}
+```
+
+Quy tắc tích hợp:
+
+- `message` được rỗng khi `answers` không rỗng; cả hai cùng rỗng sẽ bị validation error.
+- Client chỉ gửi `question_id`, `selected_option_ids`, `value`, `free_text`; không gửi `fact_path` hoặc fact patch.
+- Server validate `question_id` và option theo question set đã phát hành cho đúng `case_id`.
+- `case_version` phải khớp version hiện tại; version cũ trả HTTP 409.
+- `question_set_id` là mã bộ câu hỏi server phát hành, dùng để debug/tracking; request hiện chỉ cần gửi `question_id`.
+- `input_type` hỗ trợ: `single_choice`, `multi_choice`, `number`, `text`, `date`, `boolean`, `actor_matrix`.
+- Session hiện là in-memory, phù hợp dev/demo. Khi deploy nhiều instance cần thay bằng Redis/PostgreSQL qua interface `session_store`.
+- Backend nghiệp vụ nên lưu `case_id`, `case_version`, `question_set_id`, danh sách questions và gửi lại answers đúng option ID; frontend chỉ render form theo `clarification.questions`.
+
+Tài liệu đầy đủ hơn: `docs/structured_clarification_api.md`.
+
 ## Test Cases Gợi Ý
 
 ```bash
