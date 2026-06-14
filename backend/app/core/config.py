@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-4.1-mini"
 
     use_llm_fact_extractor: bool = False
+    use_llm_input_understanding: bool = False
+    use_llm_ner: bool = False
     use_vector_search: bool = False
     use_reranker: bool = False
     use_hyde: bool = False
@@ -68,6 +70,8 @@ def get_settings() -> Settings:
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         openai_model=os.getenv("OPENAI_MODEL", "gpt-4.1-mini"),
         use_llm_fact_extractor=_env_bool("USE_LLM_FACT_EXTRACTOR", "ENABLE_LLM_FACT_EXTRACTOR"),
+        use_llm_input_understanding=_env_bool("USE_LLM_INPUT_UNDERSTANDING", "ENABLE_LLM_INPUT_UNDERSTANDING"),
+        use_llm_ner=_env_bool("USE_LLM_NER", "ENABLE_LLM_NER"),
         use_vector_search=_env_bool("USE_VECTOR_SEARCH", "ENABLE_VECTOR_SEARCH"),
         use_reranker=_env_bool("USE_RERANKER", "ENABLE_RERANKER"),
         use_hyde=_env_bool("USE_HYDE", "ENABLE_HYDE"),

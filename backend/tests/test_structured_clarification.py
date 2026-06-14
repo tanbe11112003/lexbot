@@ -116,3 +116,45 @@ def test_backend_runs_without_openai_key():
     assert response.status == CaseStatus.collecting_facts
     assert response.clarification is not None
     assert response.clarifying_questions
+
+
+def test_unspecified_powder_question_is_neutral_and_missing_questions_do_not_misalign():
+    response = handle_legal_chat(
+        "Long và Mẫn bị bắt ở phòng karaoke, 2 người đã dương tính và còn dư 2 gam bột ở trong phòng."
+    )
+
+    powder = next(exhibit for exhibit in response.facts.exhibits if exhibit.id == "powder")
+    assert powder.quantity is not None
+    assert powder.quantity.value == 2
+
+    powder_question = next(
+        question
+        for question in response.clarification.questions
+        if question.id == "q_powder_forensic_substance"
+    )
+    assert "Ketamine" not in powder_question.text
+    assert "chất bột" in powder_question.text
+
+    role_missing_items = [item for item in response.missing_facts if item.key == "actors.roles"]
+    assert all(not item.question or "giám định" not in item.question for item in role_missing_items)
+
+
+def test_natural_language_answer_to_issued_forensic_question_is_merged():
+    first = handle_legal_chat(
+        "Long và Mẫn bị bắt ở phòng karaoke, 2 người đã dương tính và còn dư 2 gam bột ở trong phòng."
+    )
+    assert any(question.id == "q_powder_forensic_substance" for question in first.clarification.questions)
+
+    second = handle_legal_chat(
+        "Đó là chất ma túy đá.",
+        case_id=first.case_id,
+        case_version=first.case_version,
+        include_debug=True,
+    )
+
+    assert second.facts.structured_facts["exhibits.powder.confirmed_substance"] == "Methamphetamine"
+    powder = next(exhibit for exhibit in second.facts.exhibits if exhibit.id == "powder")
+    assert powder.confirmed_substance == "Methamphetamine"
+    assert powder.forensic_status == "forensic_confirmed"
+    assert all(question.id != "q_powder_forensic_substance" for question in second.clarification.questions)
+    assert "q_powder_forensic_substance" in second.debug["answered_question_ids"]

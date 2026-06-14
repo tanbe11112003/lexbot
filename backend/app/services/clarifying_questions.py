@@ -354,8 +354,8 @@ def build_structured_clarification(
     for exhibit_id, text, reason in [
         (
             "powder",
-            "Kết luận giám định xác định hoạt chất trong gói bột/gói nghi Ketamine là chất nào?",
-            "Mô tả 'nghi Ketamine' chỉ là nghi vấn ban đầu, chưa phải kết luận giám định tang vật.",
+            "Kết luận giám định xác định hoạt chất trong gói bột/chất bột bị thu giữ là chất nào?",
+            "Mô tả về bột hoặc gói bột chưa thay thế kết luận giám định xác định hoạt chất.",
         ),
         (
             "tablets",

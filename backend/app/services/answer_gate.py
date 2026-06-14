@@ -94,14 +94,40 @@ def _missing_key_label(text: str, idx: int) -> tuple[str, str]:
     return f"missing_{idx + 1}", text.split(":", 1)[0]
 
 
+def _question_matches_missing(key: str, question: str) -> bool:
+    norm_question = normalize_text(question)
+    if key == "exhibits.tablets.forensic_substance":
+        return "vien" in norm_question or "vien nen" in norm_question
+    if key == "exhibits.powder.forensic_substance":
+        return "goi bot" in norm_question or "chat bot" in norm_question or "bot" in norm_question
+    if key == "evidence.toxicology_result":
+        return "duong tinh" in norm_question or "xet nghiem" in norm_question
+    if key == "exhibits.drug_net_mass":
+        return "khoi luong" in norm_question or "dinh luong" in norm_question or "gam" in norm_question
+    if key == "exhibits.status":
+        return "tang vat" in norm_question and not any(term in norm_question for term in ["hoat chat", "giam dinh"])
+    if key == "actors.mental_state":
+        return any(term in norm_question for term in ["biet", "nhan thuc", "muc dich"])
+    if key == "actors.roles":
+        return any(term in norm_question for term in ["vai tro", "dong pham"])
+    return False
+
+
+def _question_for_missing(key: str, clarifying_questions: list[str]) -> str | None:
+    for question in clarifying_questions:
+        if _question_matches_missing(key, question):
+            return question
+    return None
+
+
 def to_missing_items(missing: list[str], clarifying_questions: list[str], facts: ExtractedFacts, scenario: str) -> list[MissingFactItem]:
     items: list[MissingFactItem] = []
     for idx, text in enumerate(missing):
         norm = normalize_text(text)
         tokens = set(norm.split())
         domain = "drug" if ("ma tuy" in norm or "tang vat va giam dinh" in norm) else "forestry" if ("lam san" in norm or "go" in tokens) else "general"
-        question = clarifying_questions[idx] if idx < len(clarifying_questions) else None
         key, label = _missing_key_label(text, idx)
+        question = _question_for_missing(key, clarifying_questions)
         items.append(MissingFactItem(
             key=key,
             label=label,

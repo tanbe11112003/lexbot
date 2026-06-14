@@ -17,9 +17,11 @@ from app.services.answer_gate import evaluate_answer_gate
 from app.services.clarifying_questions import build_clarifying_questions, build_structured_clarification
 from app.services.fact_extractor import extract_facts
 from app.services.fact_merger import apply_fact_patches, merge_facts
+from app.services.input_understanding import InputUnderstanding, understand_input
 from app.services.legal_matcher import detect_missing_facts
 from app.services.legal_pipeline import run_legal_analysis
 from app.services.session_store import session_store
+from app.utils.text import normalize_text
 
 
 def _append_message(existing: str, message: str) -> str:
@@ -65,6 +67,38 @@ def _provisional_from_reasoning(reasoning) -> list[ProvisionalFinding]:
             confidence=item.confidence,
         ))
     return findings
+
+
+def _response_from_quick_understanding(
+    session: CaseSession,
+    message: str,
+    understanding: InputUnderstanding,
+    include_debug: bool,
+) -> LegalChatResponse:
+    session.version += 1
+    session.status = CaseStatus.answered
+    extracted = session.facts.__class__()
+    turn = ConversationTurn(
+        user_message=message,
+        extracted_facts=extracted,
+        bot_response_summary=(understanding.quick_answer or "")[:300],
+    )
+    session.turns.append(turn)
+    session_store.save(session)
+    return LegalChatResponse(
+        case_id=session.case_id,
+        case_version=session.version,
+        status=CaseStatus.answered,
+        facts=session.facts,
+        provisional_findings=[],
+        missing_facts=[],
+        clarification=None,
+        clarifying_questions=[],
+        final_answer=understanding.quick_answer or "",
+        confidence=0.95 if understanding.scope in {"greeting", "thanks", "empty"} else 0.7,
+        warnings=[f"input_scope:{understanding.scope}"],
+        debug={"input_understanding": understanding.model_dump()} if include_debug else None,
+    )
 
 
 def _response_from_analysis(session: CaseSession, analysis, status: CaseStatus, debug: dict | None = None) -> LegalChatResponse:
@@ -198,6 +232,58 @@ def _validate_answers_and_build_patches(session: CaseSession, answers: list[Clar
     return patches
 
 
+def _specific_substance_option(question: ClarificationQuestion, extracted) -> str | None:
+    option_ids = {option.id for option in question.options}
+    option_labels = {normalize_text(option.label): option.id for option in question.options}
+    specific_names: list[str] = []
+    seen_specific: set[str] = set()
+    for substance in extracted.substances:
+        name = str(substance.name or "").strip()
+        if not name or normalize_text(name) in {"ma tuy", "chat ma tuy"}:
+            continue
+        if substance.confidence < 0.75:
+            continue
+        key = normalize_text(name)
+        if key not in seen_specific:
+            specific_names.append(name)
+            seen_specific.add(key)
+    if len(specific_names) != 1:
+        return None
+    norm_name = normalize_text(specific_names[0])
+    if norm_name in option_ids:
+        return norm_name
+    return option_labels.get(norm_name)
+
+
+def _infer_answer_patches_from_message(session: CaseSession, extracted) -> list[FactPatch]:
+    """Map natural-language follow-up answers to the latest issued form question.
+
+    This only bridges clear answers such as "đó là ma túy đá" after the server
+    already issued a forensic-substance question. Initial scenario extraction
+    still stays conservative and does not treat suspected substances as forensic
+    confirmation.
+    """
+    patches: list[FactPatch] = []
+    if not extracted.substances:
+        return patches
+    answered = set(session.answered_question_ids) | set(session.answered_unknown_question_ids)
+    for question_set in reversed(session.issued_question_sets):
+        for question in question_set.questions:
+            if question.id in answered:
+                continue
+            if not question.id.endswith("_forensic_substance"):
+                continue
+            option_id = _specific_substance_option(question, extracted)
+            if not option_id:
+                continue
+            answer = ClarificationAnswer(question_id=question.id, selected_option_ids=[option_id])
+            for patch in question_set.option_patches.get(question.id, {}).get(option_id, []):
+                patches.append(_materialize_patch(patch, answer, question))
+            session.answered_question_ids.append(question.id)
+            return patches
+    return patches
+
+
 def handle_legal_chat(
     message: str,
     case_id: str | None = None,
@@ -211,11 +297,36 @@ def handle_legal_chat(
     session = _load_session(case_id, bool(answers))
     _validate_case_version(session, case_version)
 
+    input_understanding = understand_input(message) if message.strip() and not answers else None
+    has_active_case_context = bool(session.scenario_text or session.issued_question_sets or session.turns)
+    can_fast_reply = (
+        input_understanding
+        and not input_understanding.should_run_pipeline
+        and (
+            input_understanding.scope in {"empty", "greeting", "thanks"}
+            or not has_active_case_context
+        )
+    )
+    if input_understanding and can_fast_reply:
+        return _response_from_quick_understanding(session, message, input_understanding, include_debug)
+
+    extraction_text = (
+        input_understanding.normalized_message
+        if input_understanding and input_understanding.normalized_message
+        else message
+    )
+    extracted = extract_facts(extraction_text) if message.strip() else session.facts.__class__()
     answer_patches = _validate_answers_and_build_patches(session, answers) if answers else []
-    extracted = extract_facts(message) if message.strip() else session.facts.__class__()
+    inferred_patches = (
+        _infer_answer_patches_from_message(session, extracted)
+        if message.strip() and not answers
+        else []
+    )
     merged = merge_facts(session.facts, extracted)
     if answer_patches:
         merged = apply_fact_patches(merged, answer_patches)
+    if inferred_patches:
+        merged = apply_fact_patches(merged, inferred_patches)
     scenario_text = _append_message(session.scenario_text, message.strip())
 
     missing = detect_missing_facts(merged, scenario_text)
@@ -273,10 +384,11 @@ def handle_legal_chat(
     if include_debug:
         debug = {
             "extracted_facts": extracted.model_dump(),
+            "input_understanding": input_understanding.model_dump() if input_understanding else None,
             "case_turns": len(session.turns),
             "scenario_text": scenario_text,
             "gate_warnings": gate_warnings,
-            "answer_patch_count": len(answer_patches),
+            "answer_patch_count": len(answer_patches) + len(inferred_patches),
             "question_set_id": structured_form.question_set_id,
             "answered_question_ids": session.answered_question_ids,
             "answered_unknown_question_ids": session.answered_unknown_question_ids,

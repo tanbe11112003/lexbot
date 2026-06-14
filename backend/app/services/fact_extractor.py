@@ -9,6 +9,7 @@ from typing import Any
 from app.core.config import settings
 from app.models.facts import Actor, EvidenceSource, ExhibitFact, ExhibitStatus, ExtractedFacts, ForensicStatus, Quantity, SubstanceFact
 from app.prompts.fact_extraction_prompt import FACT_EXTRACTION_SYSTEM, FACT_EXTRACTION_USER
+from app.services.ner import CaseEntities, extract_entities
 from app.utils.text import dedupe_keep_order, normalize_text
 
 logger = logging.getLogger(__name__)
@@ -17,14 +18,16 @@ ACTION_TERMS = [
     "tàng trữ", "vận chuyển", "mua bán", "mua", "cung cấp", "sản xuất", "chiếm đoạt", "sử dụng", "tổ chức sử dụng",
     "chứa chấp", "lôi kéo", "cưỡng bức", "che giấu", "không tố giác", "giúp sức", "xúi giục",
     "chủ mưu", "cầm đầu", "rủ", "nhờ", "đặt phòng", "chuẩn bị", "chưa đạt", "khai thác", "tự thú",
+    "đăng", "đăng thông tin", "phát tán", "loan truyền", "bịa đặt",
 ]
 SUBSTANCE_ALIASES = {
     "ketamin": "ketamine", "ketamine": "ketamine", "kẹo": "MDMA", "thuốc lắc": "MDMA",
     "mdma": "MDMA", "đá": "methamphetamine", "meth": "methamphetamine", "cần sa": "cần sa",
-    "heroin": "heroin", "ma túy": "ma túy",
+    "ke": "ketamine", "ma túy đá": "methamphetamine", "hàng trắng": "heroin",
+    "heroin": "heroin", "cỏ": "cannabis", "cannabis": "cannabis", "ma túy": "ma túy",
 }
 CONSEQUENCE_TERMS = ["chết người", "tử vong", "thương tích", "thiệt hại", "dương tính"]
-LOCATION_TERMS = ["karaoke", "quán bar", "nhà nghỉ", "phòng", "khách sạn"]
+LOCATION_TERMS = ["karaoke", "quán bar", "nhà nghỉ", "phòng", "khách sạn", "Việt Nam"]
 MITIGATING_TERMS = ["tự thú", "thành khẩn", "ăn năn", "đủ 70 tuổi", "người đủ 70 tuổi"]
 AGGRAVATING_TERMS = ["có tổ chức", "tái phạm", "tái phạm nguy hiểm", "côn đồ", "lợi dụng chức vụ"]
 EXHIBIT_PATTERNS = [
@@ -87,6 +90,50 @@ _ACTOR_STOPWORDS = {
     "Trong", "Hiện", "Căn", "Tuy", "Do", "Vì", "Với", "Ca", "Nam", "Nữ",
     "Tương", "Những", "Sơn", "Ngọc", "Minh", "Nhật", "Tết", "Có",
 }
+_NON_PERSON_LOCATION_NAMES = {
+    "viet nam",
+    "nuoc viet nam",
+    "cong hoa xa hoi chu nghia viet nam",
+}
+_ACTION_LIKE_SINGLE_TOKENS = {
+    "dang",
+    "van",
+    "chuyen",
+    "mua",
+    "ban",
+    "tang",
+    "tru",
+    "phat",
+    "tan",
+    "loan",
+    "bia",
+}
+_PREDICATE_FOLLOWERS = {
+    "thong",
+    "chuyen",
+    "tin",
+    "tan",
+    "truyen",
+    "dat",
+    "giu",
+    "tru",
+    "ban",
+    "mua",
+}
+_PERSON_NAME_EXCEPTIONS = {
+    "A",
+    "B",
+    "C",
+    "D",
+    "Long",
+    "Mẫn",
+    "Tân",
+    "Thuận",
+    "Văn",
+    "Tiến",
+    "Sang",
+    "Bí",
+}
 _SUBSTANCE_NAME_KEYS = {normalize_text(value) for value in [*SUBSTANCE_ALIASES.keys(), *SUBSTANCE_ALIASES.values(), "ma túy tổng hợp"]}
 _TITLE_PREFIX_RE = re.compile(r"^(?:ca\s+sĩ|nam\s+ca\s+sĩ|nữ\s+ca\s+sĩ|ông|bà|anh|chị|bị\s+can|bị\s+cáo)\s+", re.I)
 
@@ -98,8 +145,32 @@ def _clean_actor_name(name: str) -> str:
 
 
 def _is_likely_actor_name(name: str) -> bool:
+    if normalize_text(name) in _NON_PERSON_LOCATION_NAMES:
+        return False
     words = name.split()
     return 1 <= len(words) <= 4 and all(word and word[0].isupper() for word in words)
+
+
+def _next_normalized_word(text: str, end: int) -> str:
+    match = re.match(r"\s+([A-Za-zÀ-ỹ]+)", text[end:] or "")
+    return normalize_text(match.group(1)) if match else ""
+
+
+def _has_non_actor_context(text: str, start: int, end: int, candidate: str) -> bool:
+    if candidate in _PERSON_NAME_EXCEPTIONS:
+        return False
+    norm_candidate = normalize_text(candidate)
+    next_word = _next_normalized_word(text, end)
+    if norm_candidate == "viet" and next_word == "nam":
+        return True
+    if norm_candidate == "viet nam":
+        return True
+    if norm_candidate in _ACTION_LIKE_SINGLE_TOKENS and next_word in _PREDICATE_FOLLOWERS:
+        return True
+    before_tokens = normalize_text(text[max(0, start - 16):start]).split()
+    if norm_candidate in {"viet", "viet nam"} and before_tokens[-1:] in (["vao"], ["tai"], ["o"], ["den"], ["tu"]):
+        return True
+    return False
 
 
 def _add_actor(actors: list[Actor], seen: set[str], name: str, age: int | None = None) -> None:
@@ -132,9 +203,14 @@ def _extract_actors(text: str) -> list[Actor]:
     for match in age_name_pattern.finditer(text):
         _add_actor(actors, seen, match.group(1), int(match.group(2)))
 
-    for name in re.findall(r"\b([A-ZĐ][A-ZĐ0-9]{0,2})\b", text):
-        _add_actor(actors, seen, name)
-    for name in re.findall(r"\b([A-ZĐ][a-zA-ZÀ-ỹ]{1,24})\b", text):
+    for match in re.finditer(r"\b([A-ZĐ][A-ZĐ0-9]{0,2})\b", text):
+        if _has_non_actor_context(text, match.start(1), match.end(1), match.group(1)):
+            continue
+        _add_actor(actors, seen, match.group(1))
+    for match in re.finditer(r"\b([A-ZĐ][a-zA-ZÀ-ỹ]{1,24})\b", text):
+        name = match.group(1)
+        if _has_non_actor_context(text, match.start(1), match.end(1), name):
+            continue
         if name in _ACTOR_STOPWORDS and name != "Long":
             continue
         _add_actor(actors, seen, name)
@@ -200,6 +276,44 @@ def _extract_quantities(text: str) -> list[Quantity]:
                 unit = "đồng"
             quantities.append(Quantity(value=value, unit=unit, raw_text=m.group(0)))
     return quantities
+
+
+def _merge_ner_entities(facts: ExtractedFacts, entities: CaseEntities) -> None:
+    actor_by_key = {normalize_text(actor.name): actor for actor in facts.actors}
+    for entity_actor in entities.actors:
+        name = _clean_actor_name(entity_actor.name)
+        key = normalize_text(name)
+        if not key or key in _SUBSTANCE_NAME_KEYS:
+            continue
+        current = actor_by_key.get(key)
+        if current:
+            if entity_actor.role and not current.role:
+                current.role = entity_actor.role
+            if entity_actor.actions:
+                note = "; ".join(entity_actor.actions)
+                current.notes = note if not current.notes else f"{current.notes}; {note}"
+            continue
+        if _is_likely_actor_name(name):
+            actor = Actor(
+                name=name,
+                role=entity_actor.role,
+                notes="; ".join(entity_actor.actions) or None,
+            )
+            facts.actors.append(actor)
+            actor_by_key[key] = actor
+
+    for amount in entities.amounts:
+        unit = "đồng" if amount.unit == "dong" else amount.unit
+        quantity = Quantity(value=amount.value, unit=unit, raw_text=amount.raw)
+        if not any(q.raw_text == quantity.raw_text and q.unit == quantity.unit and q.value == quantity.value for q in facts.quantities):
+            facts.quantities.append(quantity)
+
+    facts.article_refs = dedupe_keep_order(
+        [*facts.article_refs, *[ref.article for ref in entities.article_refs]]
+    )
+    facts.actions = dedupe_keep_order([*facts.actions, *entities.actions, *entities.roles])
+    facts.objects = dedupe_keep_order([*facts.objects, *entities.objects])
+    facts.crime_hints = dedupe_keep_order([*facts.crime_hints, *entities.crime_hints])
 
 
 def _extract_exhibits(text: str, quantities: list[Quantity]) -> list[ExhibitFact]:
@@ -273,6 +387,30 @@ def _extract_exhibits(text: str, quantities: list[Quantity]) -> list[ExhibitFact
             confidence=0.65 if default_source == EvidenceSource.police_record else 0.55,
         )
 
+    powder_mass_pattern = (
+        rf"(?:(?:còn\s+dư|còn\s+lại|còn|thu\s+giữ|thu\s+được|phát\s+hiện)[^. ;,]{{0,20}}\s*)?"
+        rf"{number_unit}(gam|g|kg|mg)\s+(?:bột|chất\s+bột|gói\s+bột)[^.;,]{{0,60}}"
+    )
+    for match in re.finditer(powder_mass_pattern, text, flags=re.I):
+        source = match.group(0).strip()
+        norm_source = normalize_text(source)
+        quantity = Quantity(
+            value=_parse_quantity_value(match.group(1)),
+            unit=match.group(2).lower(),
+            raw_text=f"{match.group(1)} {match.group(2)}",
+            object="powder",
+        )
+        source_has_seizure = any(term in norm_source for term in ["thu giu", "thu duoc", "phat hien", "con du", "con lai"])
+        add_exhibit(
+            status=ExhibitStatus.seized if source_has_seizure else ExhibitStatus.mentioned,
+            description=source,
+            form="powder",
+            forensic_status=ForensicStatus.mentioned,
+            quantity=quantity,
+            evidence_source=EvidenceSource.police_record if source_has_seizure else default_source,
+            confidence=0.65 if source_has_seizure else 0.55,
+        )
+
     for status, pattern in EXHIBIT_PATTERNS:
         for match in re.finditer(pattern, text, flags=re.I):
             if exhibits and status == "seized":
@@ -309,6 +447,7 @@ def _regex_extract(text: str) -> ExtractedFacts:
     facts = ExtractedFacts()
     facts.actors = _extract_actors(text)
     facts.quantities = _extract_quantities(text)
+    _merge_ner_entities(facts, extract_entities(text))
     facts.exhibits = _extract_exhibits(text, facts.quantities)
     facts.actions = [term for term in ACTION_TERMS if normalize_text(term) in norm]
     facts.consequences = [term for term in CONSEQUENCE_TERMS if normalize_text(term) in norm]
